@@ -26,6 +26,7 @@ client/dist/
 .DS_Store
 .idea/
 .vscode/
+.cursor/
 
 # Problem statement (kept locally, not versioned)
 *.pdf
