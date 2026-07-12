@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant C as Client
+    participant MW as Middleware (CORS)
+    participant A as Auth + RBAC dep
+    participant V as Pydantic schema
+    participant Svc as Service
+    participant Eng as Engine
+    participant DB as PostgreSQL
+
+    C->>MW: HTTPS request + JWT
+    MW->>A: verify Bearer token
+    A->>A: decode JWT, load user, check role/scope
+    A->>V: request body
+    V->>V: validate & coerce (422 on bad input)
+    V->>Svc: typed DTO
+    Svc->>Eng: compute (score / carbon / rewards)
+    Svc->>DB: read / write in a transaction
+    DB-->>Svc: rows
+    Svc-->>C: response model (or error envelope)

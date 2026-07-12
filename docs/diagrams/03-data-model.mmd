@@ -1,0 +1,26 @@
+erDiagram
+    ORGANIZATION ||--o{ DEPARTMENT : has
+    DEPARTMENT ||--o{ EMPLOYEE : employs
+    DEPARTMENT ||--o{ DEPARTMENT_SCORE : "scored over time"
+    USER |o--|| EMPLOYEE : "optionally linked"
+
+    EMPLOYEE ||--o{ OPERATIONAL_ACTIVITY : logs
+    OPERATIONAL_ACTIVITY ||--|| CARBON_TRANSACTION : produces
+    EMISSION_FACTOR ||--o{ OPERATIONAL_ACTIVITY : rates
+    DEPARTMENT ||--o{ REDUCTION_GOAL : targets
+
+    TRAINING ||--o{ TRAINING_ASSIGNMENT : covers
+    EMPLOYEE ||--o{ TRAINING_ASSIGNMENT : assigned
+    CSR_ACTIVITY ||--o{ CSR_PARTICIPATION : hosts
+    EMPLOYEE ||--o{ CSR_PARTICIPATION : joins
+
+    CHALLENGE ||--o{ CHALLENGE_PARTICIPATION : offers
+    EMPLOYEE ||--o{ CHALLENGE_PARTICIPATION : enters
+    EMPLOYEE ||--o{ LEDGER_ENTRY : "earns XP/points"
+    REWARD ||--o{ REDEMPTION : "redeemed as"
+    EMPLOYEE ||--o{ REDEMPTION : spends
+
+    POLICY ||--o{ POLICY_ACKNOWLEDGEMENT : versioned
+    EMPLOYEE ||--o{ POLICY_ACKNOWLEDGEMENT : signs
+    EMPLOYEE ||--o{ COMPLIANCE_ISSUE : "owns & raises"
+    DEPARTMENT ||--o{ AUDIT : audited
