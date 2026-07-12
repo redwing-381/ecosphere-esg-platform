@@ -78,12 +78,35 @@ class TrainingCreate(BaseModel):
     mandatory: bool = False
 
 
+class TrainingUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=150)
+    description: str | None = None
+    mandatory: bool | None = None
+
+
 class TrainingOut(BaseModel):
     id: int
     name: str
+    description: str | None
     mandatory: bool
 
     model_config = {"from_attributes": True}
+
+
+class AssignmentRequest(BaseModel):
+    """Employees a course is being enabled for."""
+
+    employee_ids: list[int] = Field(min_length=1)
+
+
+class MyTrainingOut(BaseModel):
+    """A course enabled for the current employee, with completion state."""
+
+    id: int
+    name: str
+    description: str | None
+    mandatory: bool
+    completed: bool
 
 
 class DiversityRow(BaseModel):

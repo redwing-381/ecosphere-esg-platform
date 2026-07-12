@@ -24,7 +24,12 @@ from app.models.notification import Notification, NotificationSetting
 from app.models.organization import Organization
 from app.models.people import Employee, User
 from app.models.scoring import DepartmentScore
-from app.models.social import CSRActivity, EmployeeParticipation, TrainingCompletion
+from app.models.social import (
+    CSRActivity,
+    EmployeeParticipation,
+    TrainingAssignment,
+    TrainingCompletion,
+)
 
 __all__ = [
     "Organization",
@@ -44,6 +49,7 @@ __all__ = [
     "CSRActivity",
     "EmployeeParticipation",
     "TrainingCompletion",
+    "TrainingAssignment",
     "Challenge",
     "ChallengeParticipation",
     "BadgeAward",

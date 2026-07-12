@@ -76,3 +76,17 @@ class TrainingCompletion(Base):
     training_id: Mapped[int] = mapped_column(ForeignKey("training.id"), nullable=False)
     employee_id: Mapped[int] = mapped_column(ForeignKey("employee.id"), nullable=False)
     completed_at: Mapped[date] = mapped_column(Date, nullable=False)
+
+
+class TrainingAssignment(Base):
+    """A course enabled for an employee by a manager (dept head or admin)."""
+
+    __tablename__ = "training_assignment"
+    __table_args__ = (
+        UniqueConstraint("training_id", "employee_id", name="uq_training_assignment"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    training_id: Mapped[int] = mapped_column(ForeignKey("training.id"), nullable=False)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employee.id"), nullable=False)
+    assigned_by: Mapped[int | None] = mapped_column(ForeignKey("employee.id"))
