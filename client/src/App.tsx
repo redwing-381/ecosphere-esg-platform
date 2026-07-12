@@ -10,12 +10,18 @@ import Gamification from "./pages/Gamification";
 import Rewards from "./pages/Rewards";
 import Simulator from "./pages/Simulator";
 import Reports from "./pages/Reports";
+import Approvals from "./pages/Approvals";
+import Admin from "./pages/Admin";
+import Profile from "./pages/Profile";
 
-/** Guard that redirects unauthenticated users to the login screen. */
-function Protected({ children }: { children: React.ReactNode }) {
+type Role = "admin" | "dept_head" | "employee";
+
+/** Guard that redirects unauthenticated users and enforces role access. */
+function Protected({ children, roles }: { children: React.ReactNode; roles?: Role[] }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="p-8 text-slate-500">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
+  if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />;
   return <Layout>{children}</Layout>;
 }
 
@@ -31,6 +37,23 @@ export default function App() {
       <Route path="/rewards" element={<Protected><Rewards /></Protected>} />
       <Route path="/simulator" element={<Protected><Simulator /></Protected>} />
       <Route path="/reports" element={<Protected><Reports /></Protected>} />
+      <Route path="/profile" element={<Protected><Profile /></Protected>} />
+      <Route
+        path="/approvals"
+        element={
+          <Protected roles={["admin", "dept_head"]}>
+            <Approvals />
+          </Protected>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <Protected roles={["admin"]}>
+            <Admin />
+          </Protected>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
