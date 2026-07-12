@@ -6,8 +6,8 @@ from app.core.database import get_db
 from app.core.exceptions import ValidationError
 from app.core.uploads import save_proof
 from app.deps.auth import get_current_user, require_roles
-from app.models.enums import CategoryType, UserRole
-from app.models.people import User
+from app.models.enums import ApprovalStatus, CategoryType, UserRole
+from app.models.people import Employee, User
 from app.modules.social import service
 from app.modules.social.schemas import (
     CategoryCreate,
@@ -15,6 +15,7 @@ from app.modules.social.schemas import (
     CSRActivityCreate,
     CSRActivityOut,
     DiversityRow,
+    ParticipationDetail,
     ParticipationOut,
     TrainingCreate,
     TrainingOut,
@@ -28,6 +29,14 @@ def _employee_id(user: User) -> int:
     if user.employee_id is None:
         raise ValidationError("Your account is not linked to an employee")
     return user.employee_id
+
+
+def _review_scope(db: Session, user: User) -> int | None:
+    """Return the department a reviewer is limited to (None for admins)."""
+    if user.role == UserRole.DEPT_HEAD and user.employee_id:
+        employee = db.get(Employee, user.employee_id)
+        return employee.department_id if employee else None
+    return None
 
 
 @router.get("/categories", response_model=list[CategoryOut])
@@ -62,6 +71,19 @@ def join_csr(activity_id: int, db: Session = Depends(get_db), user: User = Depen
     return service.join_csr(db, activity_id, _employee_id(user))
 
 
+@router.get("/participations", response_model=list[ParticipationDetail])
+def list_participations(
+    status: ApprovalStatus | None = None,
+    mine: bool = False,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """List participations. Employees see their own; managers see their scope."""
+    if mine or user.role == UserRole.EMPLOYEE:
+        return service.list_participations(db, employee_id=_employee_id(user), status=status)
+    return service.list_participations(db, dept_id=_review_scope(db, user), status=status)
+
+
 @router.post("/participations/{participation_id}/proof", response_model=ParticipationOut)
 def upload_proof(
     participation_id: int,
@@ -78,7 +100,9 @@ def approve(
     participation_id: int, db: Session = Depends(get_db), user: User = Depends(manage)
 ):
     """Approve a participation and award XP/points."""
-    return service.approve_participation(db, participation_id, _employee_id(user))
+    return service.approve_participation(
+        db, participation_id, _employee_id(user), _review_scope(db, user)
+    )
 
 
 @router.post("/participations/{participation_id}/reject", response_model=ParticipationOut)
@@ -86,7 +110,9 @@ def reject(
     participation_id: int, db: Session = Depends(get_db), user: User = Depends(manage)
 ):
     """Reject a participation."""
-    return service.reject_participation(db, participation_id, _employee_id(user))
+    return service.reject_participation(
+        db, participation_id, _employee_id(user), _review_scope(db, user)
+    )
 
 
 @router.get("/trainings", response_model=list[TrainingOut])

@@ -58,6 +58,20 @@ class ParticipationOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ParticipationDetail(BaseModel):
+    """Participation enriched with employee and activity names for review queues."""
+
+    id: int
+    employee_id: int
+    employee_name: str
+    csr_activity_id: int
+    activity_name: str
+    proof_url: str | None
+    approval_status: ApprovalStatus
+    xp_earned: int
+    points_earned: int
+
+
 class TrainingCreate(BaseModel):
     name: str = Field(min_length=2, max_length=150)
     description: str | None = None

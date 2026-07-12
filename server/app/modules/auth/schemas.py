@@ -36,3 +36,18 @@ class UserOut(BaseModel):
     employee_id: int | None
 
     model_config = {"from_attributes": True}
+
+
+class ProfileOut(BaseModel):
+    """Current user's account joined with their employee record."""
+
+    id: int
+    email: EmailStr
+    role: UserRole
+    employee_id: int | None
+    name: str | None
+    department_id: int | None
+    department_name: str | None
+    job_title: str | None
+    xp_balance: int
+    points_balance: int

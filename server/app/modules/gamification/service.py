@@ -2,7 +2,12 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.exceptions import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+)
 from app.engines import gamification
 from app.models.enums import ApprovalStatus, ChallengeStatus, LedgerReason
 from app.models.gamification import BadgeAward, Challenge, ChallengeParticipation
@@ -69,11 +74,58 @@ def join_challenge(db: Session, challenge_id: int, employee_id: int) -> Challeng
     return participation
 
 
+def list_participations(
+    db: Session,
+    employee_id: int | None = None,
+    dept_id: int | None = None,
+    status: ApprovalStatus | None = None,
+) -> list[dict]:
+    """List challenge participations with names for queues and history."""
+    stmt = (
+        select(ChallengeParticipation, Employee.name, Challenge.title)
+        .join(Employee, Employee.id == ChallengeParticipation.employee_id)
+        .join(Challenge, Challenge.id == ChallengeParticipation.challenge_id)
+        .order_by(ChallengeParticipation.id.desc())
+    )
+    if employee_id is not None:
+        stmt = stmt.where(ChallengeParticipation.employee_id == employee_id)
+    if dept_id is not None:
+        stmt = stmt.where(Employee.department_id == dept_id)
+    if status is not None:
+        stmt = stmt.where(ChallengeParticipation.approval_status == status)
+    return [
+        {
+            "id": p.id,
+            "challenge_id": p.challenge_id,
+            "challenge_title": title,
+            "employee_id": p.employee_id,
+            "employee_name": emp_name,
+            "progress": p.progress,
+            "proof_url": p.proof_url,
+            "approval_status": p.approval_status,
+            "xp_awarded": p.xp_awarded,
+            "points_awarded": p.points_awarded,
+        }
+        for p, emp_name, title in db.execute(stmt).all()
+    ]
+
+
 def _get_participation(db: Session, participation_id: int) -> ChallengeParticipation:
     participation = db.get(ChallengeParticipation, participation_id)
     if participation is None:
         raise NotFoundError("Participation not found")
     return participation
+
+
+def _assert_in_scope(
+    db: Session, participation: ChallengeParticipation, scope_dept_id: int | None
+) -> None:
+    """Ensure a dept-head only reviews participants in their own department."""
+    if scope_dept_id is None:
+        return
+    employee = db.get(Employee, participation.employee_id)
+    if employee is None or employee.department_id != scope_dept_id:
+        raise ForbiddenError("You can only review participants in your department")
 
 
 def submit_proof(db: Session, participation_id: int, proof_url: str) -> ChallengeParticipation:
@@ -86,10 +138,11 @@ def submit_proof(db: Session, participation_id: int, proof_url: str) -> Challeng
 
 
 def approve_challenge(
-    db: Session, participation_id: int, reviewer_id: int
+    db: Session, participation_id: int, reviewer_id: int, scope_dept_id: int | None = None
 ) -> ChallengeParticipation:
     """Approve challenge completion, enforcing evidence and awarding XP/points."""
     participation = _get_participation(db, participation_id)
+    _assert_in_scope(db, participation, scope_dept_id)
     if participation.approval_status != ApprovalStatus.PENDING:
         raise ConflictError("This submission has already been reviewed")
 
@@ -113,9 +166,10 @@ def approve_challenge(
 
 
 def reject_challenge(
-    db: Session, participation_id: int, reviewer_id: int
+    db: Session, participation_id: int, reviewer_id: int, scope_dept_id: int | None = None
 ) -> ChallengeParticipation:
     participation = _get_participation(db, participation_id)
+    _assert_in_scope(db, participation, scope_dept_id)
     if participation.approval_status != ApprovalStatus.PENDING:
         raise ConflictError("This submission has already been reviewed")
     participation.approval_status = ApprovalStatus.REJECTED

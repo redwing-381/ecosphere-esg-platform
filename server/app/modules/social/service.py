@@ -4,7 +4,12 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.exceptions import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+)
 from app.engines import gamification
 from app.models.enums import (
     ApprovalStatus,
@@ -90,12 +95,58 @@ def join_csr(db: Session, activity_id: int, employee_id: int) -> EmployeePartici
     return participation
 
 
+def list_participations(
+    db: Session,
+    employee_id: int | None = None,
+    dept_id: int | None = None,
+    status: ApprovalStatus | None = None,
+) -> list[dict]:
+    """List participations with employee/activity names for queues and history."""
+    stmt = (
+        select(EmployeeParticipation, Employee.name, CSRActivity.name)
+        .join(Employee, Employee.id == EmployeeParticipation.employee_id)
+        .join(CSRActivity, CSRActivity.id == EmployeeParticipation.csr_activity_id)
+        .order_by(EmployeeParticipation.id.desc())
+    )
+    if employee_id is not None:
+        stmt = stmt.where(EmployeeParticipation.employee_id == employee_id)
+    if dept_id is not None:
+        stmt = stmt.where(Employee.department_id == dept_id)
+    if status is not None:
+        stmt = stmt.where(EmployeeParticipation.approval_status == status)
+    return [
+        {
+            "id": p.id,
+            "employee_id": p.employee_id,
+            "employee_name": emp_name,
+            "csr_activity_id": p.csr_activity_id,
+            "activity_name": act_name,
+            "proof_url": p.proof_url,
+            "approval_status": p.approval_status,
+            "xp_earned": p.xp_earned,
+            "points_earned": p.points_earned,
+        }
+        for p, emp_name, act_name in db.execute(stmt).all()
+    ]
+
+
 def attach_proof(db: Session, participation_id: int, proof_url: str) -> EmployeeParticipation:
     participation = _get_participation(db, participation_id)
     participation.proof_url = proof_url
     db.commit()
     db.refresh(participation)
     return participation
+
+
+def _assert_in_scope(
+    db: Session, participation: EmployeeParticipation, scope_dept_id: int | None
+) -> None:
+    """Ensure a dept-head only reviews participants in their own department."""
+    if scope_dept_id is None:
+        return
+    employee = db.get(Employee, participation.employee_id)
+    if employee is None or employee.department_id != scope_dept_id:
+        raise ForbiddenError("You can only review participants in your department")
 
 
 def _get_participation(db: Session, participation_id: int) -> EmployeeParticipation:
@@ -106,10 +157,11 @@ def _get_participation(db: Session, participation_id: int) -> EmployeeParticipat
 
 
 def approve_participation(
-    db: Session, participation_id: int, reviewer_id: int
+    db: Session, participation_id: int, reviewer_id: int, scope_dept_id: int | None = None
 ) -> EmployeeParticipation:
     """Approve a participation, enforcing evidence and awarding XP/points."""
     participation = _get_participation(db, participation_id)
+    _assert_in_scope(db, participation, scope_dept_id)
     if participation.approval_status != ApprovalStatus.PENDING:
         raise ConflictError("This participation has already been reviewed")
 
@@ -137,9 +189,10 @@ def approve_participation(
 
 
 def reject_participation(
-    db: Session, participation_id: int, reviewer_id: int
+    db: Session, participation_id: int, reviewer_id: int, scope_dept_id: int | None = None
 ) -> EmployeeParticipation:
     participation = _get_participation(db, participation_id)
+    _assert_in_scope(db, participation, scope_dept_id)
     if participation.approval_status != ApprovalStatus.PENDING:
         raise ConflictError("This participation has already been reviewed")
     participation.approval_status = ApprovalStatus.REJECTED
