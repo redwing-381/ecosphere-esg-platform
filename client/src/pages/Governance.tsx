@@ -2,12 +2,22 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { apiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { useDepartments, useEmployees } from "../lib/hooks";
+import { useDepartments, useEmployees, useProfile } from "../lib/hooks";
 import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Table, Td } from "../components/ui";
 
 type Policy = { id: number; name: string; pillar: string; version: number; requires_ack: boolean };
 type Audit = { id: number; name: string; department_id: number | null; audit_date: string; passed: boolean | null };
-type Issue = { id: number; severity: string; description: string; owner_id: number; due_date: string; status: string; is_overdue: boolean };
+type Issue = {
+  id: number;
+  severity: string;
+  description: string;
+  owner_id: number;
+  owner_name: string | null;
+  created_by_name: string | null;
+  due_date: string;
+  status: string;
+  is_overdue: boolean;
+};
 
 const sevTone: Record<string, string> = { critical: "rose", high: "rose", medium: "amber", low: "slate" };
 const isManagerRole = (r?: string) => r === "admin" || r === "dept_head";
@@ -16,6 +26,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 /** Governance module: policies, audits and compliance issues. */
 export default function Governance() {
   const { user } = useAuth();
+  const { data: profile } = useProfile();
   const isManager = isManagerRole(user?.role);
   const qc = useQueryClient();
   const [note, setNote] = useState("");
@@ -23,7 +34,7 @@ export default function Governance() {
   const [issueOpen, setIssueOpen] = useState(false);
   const departments = useDepartments();
   const employees = useEmployees();
-  const [audit, setAudit] = useState({ name: "", department_id: "", audit_date: today(), passed: "" });
+  const [audit, setAudit] = useState({ name: "", department_id: "", audit_date: today() });
   const [issue, setIssue] = useState({ description: "", severity: "medium", owner_id: "", due_date: today() });
 
   const policies = useQuery({ queryKey: ["policies"], queryFn: async () => (await api.get<Policy[]>("/governance/policies")).data });
@@ -43,13 +54,18 @@ export default function Governance() {
     },
     onError: (e) => setNote(apiError(e)),
   });
+  const setResult = useMutation({
+    mutationFn: async ({ id, passed }: { id: number; passed: boolean | null }) =>
+      api.patch(`/governance/audits/${id}`, { passed }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["audits"] }),
+    onError: (e) => setNote(apiError(e)),
+  });
   const createAudit = useMutation({
     mutationFn: async () =>
       api.post("/governance/audits", {
         name: audit.name,
         department_id: audit.department_id ? Number(audit.department_id) : null,
         audit_date: audit.audit_date,
-        passed: audit.passed === "" ? null : audit.passed === "true",
       }),
     onSuccess: () => {
       setAuditOpen(false);
@@ -72,6 +88,8 @@ export default function Governance() {
     onError: (e) => setNote(apiError(e)),
   });
 
+  const canResolve = (i: Issue) => isManager || profile?.employee_id === i.owner_id;
+
   return (
     <div className="space-y-6">
       <PageHeader title="Governance" subtitle="Acknowledge policies and track audits and compliance issues." />
@@ -79,7 +97,7 @@ export default function Governance() {
 
       <div>
         <p className="mb-3 text-sm font-medium text-slate-700">Policies</p>
-        <Table head={["Policy", "Pillar", "Version", ""]}>
+        <Table head={["Policy", "Pillar", "Version", ""]} scroll>
           {policies.data?.map((p) => (
             <tr key={p.id}>
               <Td className="font-medium">{p.name}</Td>
@@ -97,32 +115,55 @@ export default function Governance() {
         </Table>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-700">Audits</p>
-            {isManager && <Button onClick={() => setAuditOpen(true)}>+ Add</Button>}
-          </div>
-          <Table head={["Audit", "Date", "Result"]}>
-            {audits.data?.map((a) => (
-              <tr key={a.id}>
-                <Td className="font-medium">{a.name}</Td>
-                <Td>{a.audit_date}</Td>
-                <Td>
-                  {a.passed === null ? <Badge>Pending</Badge> : a.passed ? <Badge tone="green">Passed</Badge> : <Badge tone="rose">Failed</Badge>}
-                </Td>
-              </tr>
-            ))}
-          </Table>
-        </Card>
+      <Card>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-sm font-medium text-slate-700">Audits</p>
+          {isManager && <Button onClick={() => setAuditOpen(true)}>+ Add audit</Button>}
+        </div>
+        <Table head={["Audit", "Date", "Result"]} scroll>
+          {audits.data?.map((a) => (
+            <tr key={a.id}>
+              <Td className="font-medium">{a.name}</Td>
+              <Td>{a.audit_date}</Td>
+              <Td>
+                {isManager ? (
+                  <Select
+                    className="w-36"
+                    value={a.passed === null ? "" : a.passed ? "true" : "false"}
+                    onChange={(e) =>
+                      setResult.mutate({ id: a.id, passed: e.target.value === "" ? null : e.target.value === "true" })
+                    }
+                  >
+                    <option value="">Pending</option>
+                    <option value="true">Passed</option>
+                    <option value="false">Failed</option>
+                  </Select>
+                ) : a.passed === null ? (
+                  <Badge>Pending</Badge>
+                ) : a.passed ? (
+                  <Badge tone="green">Passed</Badge>
+                ) : (
+                  <Badge tone="rose">Failed</Badge>
+                )}
+              </Td>
+            </tr>
+          ))}
+        </Table>
+      </Card>
 
-        <Card>
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-700">Compliance issues</p>
-            {isManager && <Button onClick={() => setIssueOpen(true)}>+ Add</Button>}
-          </div>
-          <Table head={["Issue", "Severity", "Due", ""]}>
-            {issues.data?.map((i) => (
+      <Card>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-sm font-medium text-slate-700">Compliance issues</p>
+          {isManager && <Button onClick={() => setIssueOpen(true)}>+ Add issue</Button>}
+        </div>
+        <Table head={["Issue", "Severity", "Assigned to", "Raised by", "Due", ""]} scroll>
+          {issues.data?.length === 0 ? (
+            <tr>
+              <Td className="text-slate-400">No compliance issues.</Td>
+              <Td /> <Td /> <Td /> <Td /> <Td />
+            </tr>
+          ) : (
+            issues.data?.map((i) => (
               <tr key={i.id}>
                 <Td className="font-medium">
                   {i.description}
@@ -135,12 +176,14 @@ export default function Governance() {
                 <Td>
                   <Badge tone={sevTone[i.severity] ?? "slate"}>{i.severity}</Badge>
                 </Td>
+                <Td>{i.owner_name ?? "—"}</Td>
+                <Td>{i.created_by_name ?? "—"}</Td>
                 <Td>{i.due_date}</Td>
                 <Td>
                   {i.status === "resolved" ? (
                     <Badge tone="green">Resolved</Badge>
                   ) : (
-                    isManager && (
+                    canResolve(i) && (
                       <Button variant="ghost" onClick={() => resolve.mutate(i.id)}>
                         Resolve
                       </Button>
@@ -148,10 +191,10 @@ export default function Governance() {
                   )}
                 </Td>
               </tr>
-            ))}
-          </Table>
-        </Card>
-      </div>
+            ))
+          )}
+        </Table>
+      </Card>
 
       <Modal open={auditOpen} title="Add audit" onClose={() => setAuditOpen(false)}>
         <div className="space-y-3">
@@ -168,18 +211,10 @@ export default function Governance() {
               ))}
             </Select>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Date">
-              <Input type="date" value={audit.audit_date} onChange={(e) => setAudit({ ...audit, audit_date: e.target.value })} />
-            </Field>
-            <Field label="Result">
-              <Select value={audit.passed} onChange={(e) => setAudit({ ...audit, passed: e.target.value })}>
-                <option value="">Pending</option>
-                <option value="true">Passed</option>
-                <option value="false">Failed</option>
-              </Select>
-            </Field>
-          </div>
+          <Field label="Date">
+            <Input type="date" value={audit.audit_date} onChange={(e) => setAudit({ ...audit, audit_date: e.target.value })} />
+          </Field>
+          <p className="text-xs text-slate-400">Set the pass/fail result from the audits table once completed.</p>
           <Button className="w-full" onClick={() => createAudit.mutate()} disabled={createAudit.isPending}>
             Save audit
           </Button>
@@ -204,7 +239,7 @@ export default function Governance() {
               <Input type="date" value={issue.due_date} onChange={(e) => setIssue({ ...issue, due_date: e.target.value })} />
             </Field>
           </div>
-          <Field label="Owner">
+          <Field label="Assign to">
             <Select value={issue.owner_id} onChange={(e) => setIssue({ ...issue, owner_id: e.target.value })}>
               <option value="">Select…</option>
               {(employees.data ?? []).map((emp) => (

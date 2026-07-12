@@ -20,6 +20,7 @@ export default function Rewards() {
     onSuccess: () => {
       setNote("Reward redeemed — points deducted.");
       qc.invalidateQueries({ queryKey: ["rewards"] });
+      qc.invalidateQueries({ queryKey: ["profile"] });
     },
     onError: (e) => setNote(apiError(e)),
   });
