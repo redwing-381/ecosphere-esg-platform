@@ -13,6 +13,7 @@ import {
   Table,
   Td,
   Textarea,
+  Toggle,
 } from "../components/ui";
 
 type FieldType = "text" | "number" | "date" | "select" | "checkbox" | "textarea";
@@ -290,6 +291,7 @@ function OrganizationPanel() {
         auto_carbon: current.auto_carbon,
         evidence_required: current.evidence_required,
         badge_auto_award: current.badge_auto_award,
+        email_alerts: current.email_alerts,
       }),
     onSuccess: () => {
       setMsg("Settings saved.");
@@ -323,19 +325,30 @@ function OrganizationPanel() {
         </Field>
         <div />
       </div>
-      <div className="mt-3 flex flex-wrap gap-4 text-sm text-slate-600">
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={current.auto_carbon} onChange={(e) => set({ auto_carbon: e.target.checked })} />
-          Auto carbon calculation
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={current.evidence_required} onChange={(e) => set({ evidence_required: e.target.checked })} />
-          Require evidence for approval
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={current.badge_auto_award} onChange={(e) => set({ badge_auto_award: e.target.checked })} />
-          Auto-award badges
-        </label>
+      <div className="mt-5">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">ESG Configuration</p>
+        <div className="space-y-3">
+          <Toggle
+            checked={current.auto_carbon}
+            onChange={(v) => set({ auto_carbon: v })}
+            label="Enable auto emission calculation"
+          />
+          <Toggle
+            checked={current.evidence_required}
+            onChange={(v) => set({ evidence_required: v })}
+            label="Require evidence for all CSR activities"
+          />
+          <Toggle
+            checked={current.badge_auto_award}
+            onChange={(v) => set({ badge_auto_award: v })}
+            label="Auto-award badges on challenge completion"
+          />
+          <Toggle
+            checked={current.email_alerts}
+            onChange={(v) => set({ email_alerts: v })}
+            label="Email alerts for new compliance issues"
+          />
+        </div>
       </div>
       <div className="mt-4">
         <Button onClick={() => save.mutate()} disabled={save.isPending}>

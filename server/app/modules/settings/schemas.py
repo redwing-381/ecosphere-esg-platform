@@ -11,6 +11,7 @@ class SettingsOut(BaseModel):
     auto_carbon: bool
     evidence_required: bool
     badge_auto_award: bool
+    email_alerts: bool
 
     model_config = {"from_attributes": True}
 
@@ -23,6 +24,7 @@ class SettingsUpdate(BaseModel):
     auto_carbon: bool | None = None
     evidence_required: bool | None = None
     badge_auto_award: bool | None = None
+    email_alerts: bool | None = None
 
     @model_validator(mode="after")
     def _weights_sum_to_100(self) -> "SettingsUpdate":
