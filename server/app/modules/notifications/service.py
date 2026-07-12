@@ -24,6 +24,22 @@ def unread_count(db: Session, employee_id: int) -> int:
     )
 
 
+def mark_all_read(db: Session, employee_id: int) -> int:
+    """Mark every unread notification for an employee as read. Returns the count."""
+    rows = list(
+        db.scalars(
+            select(Notification).where(
+                Notification.recipient_id == employee_id,
+                Notification.is_read.is_(False),
+            )
+        )
+    )
+    for row in rows:
+        row.is_read = True
+    db.commit()
+    return len(rows)
+
+
 def mark_read(db: Session, notification_id: int, employee_id: int) -> Notification:
     notification = db.get(Notification, notification_id)
     if notification is None:

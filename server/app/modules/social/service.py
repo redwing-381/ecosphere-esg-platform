@@ -56,8 +56,47 @@ def create_category(db: Session, data: CategoryCreate) -> Category:
     return category
 
 
-def list_csr(db: Session) -> list[CSRActivity]:
-    return list(db.scalars(select(CSRActivity).order_by(CSRActivity.activity_date.desc())))
+def list_csr(db: Session, employee_id: int | None = None) -> list[dict]:
+    """List CSR activities with the caller's join status and remaining capacity."""
+    activities = list(
+        db.scalars(select(CSRActivity).order_by(CSRActivity.activity_date.desc()))
+    )
+    counts = dict(
+        db.execute(
+            select(EmployeeParticipation.csr_activity_id, func.count()).group_by(
+                EmployeeParticipation.csr_activity_id
+            )
+        ).all()
+    )
+    mine: dict[int, str] = {}
+    if employee_id is not None:
+        rows = db.execute(
+            select(
+                EmployeeParticipation.csr_activity_id,
+                EmployeeParticipation.approval_status,
+            ).where(EmployeeParticipation.employee_id == employee_id)
+        ).all()
+        mine = {aid: status.value for aid, status in rows}
+    result = []
+    for a in activities:
+        joined = counts.get(a.id, 0)
+        result.append(
+            {
+                "id": a.id,
+                "name": a.name,
+                "category_id": a.category_id,
+                "department_id": a.department_id,
+                "activity_date": a.activity_date,
+                "xp_reward": a.xp_reward,
+                "points_reward": a.points_reward,
+                "capacity": a.capacity,
+                "status": a.status,
+                "joined_count": joined,
+                "spots_left": None if a.capacity is None else max(0, a.capacity - joined),
+                "my_status": mine.get(a.id),
+            }
+        )
+    return result
 
 
 def create_csr(db: Session, data: CSRActivityCreate) -> CSRActivity:

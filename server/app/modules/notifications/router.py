@@ -20,14 +20,26 @@ def _employee_id(user: User) -> int:
 
 @router.get("", response_model=list[NotificationOut])
 def list_notifications(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """List the current employee's notifications."""
-    return service.list_for(db, _employee_id(user))
+    """List the current employee's notifications (empty for non-participating accounts)."""
+    if user.employee_id is None:
+        return []
+    return service.list_for(db, user.employee_id)
 
 
 @router.get("/unread-count", response_model=UnreadCount)
 def unread_count(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Return the current employee's unread notification count."""
-    return UnreadCount(unread=service.unread_count(db, _employee_id(user)))
+    if user.employee_id is None:
+        return UnreadCount(unread=0)
+    return UnreadCount(unread=service.unread_count(db, user.employee_id))
+
+
+@router.post("/read-all")
+def mark_all_read(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Mark all of the current employee's notifications as read."""
+    if user.employee_id is None:
+        return {"read": 0}
+    return {"read": service.mark_all_read(db, user.employee_id)}
 
 
 @router.post("/{notification_id}/read", response_model=NotificationOut)

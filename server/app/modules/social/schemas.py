@@ -42,6 +42,9 @@ class CSRActivityOut(BaseModel):
     points_reward: int
     capacity: int | None
     status: Status
+    joined_count: int = 0
+    spots_left: int | None = None
+    my_status: str | None = None
 
     model_config = {"from_attributes": True}
 
