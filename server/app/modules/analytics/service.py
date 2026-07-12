@@ -96,11 +96,28 @@ def emissions_trend(db: Session, months: int = 12) -> list[dict]:
     return [{"month": m.strftime("%b %Y"), "co2e": round(float(total), 1)} for m, total in rows]
 
 
-def recent_activity(db: Session, limit: int = 8) -> list[dict]:
-    """Return the most recent notifications as an organization activity feed."""
-    rows = db.scalars(
-        select(Notification).order_by(Notification.created_at.desc()).limit(limit)
-    )
+def recent_activity(
+    db: Session,
+    *,
+    employee_id: int | None = None,
+    dept_id: int | None = None,
+    org_wide: bool = False,
+    limit: int = 8,
+) -> list[dict]:
+    """Return a recent-activity feed scoped to the caller.
+
+    - ``org_wide`` (admins): every recipient's notifications.
+    - ``dept_id`` (dept heads): notifications for that department's employees.
+    - ``employee_id`` (employees): only the caller's own notifications.
+    """
+    stmt = select(Notification).order_by(Notification.created_at.desc())
+    if not org_wide:
+        if dept_id is not None:
+            dept_employees = select(Employee.id).where(Employee.department_id == dept_id)
+            stmt = stmt.where(Notification.recipient_id.in_(dept_employees))
+        else:
+            stmt = stmt.where(Notification.recipient_id == employee_id)
+    rows = db.scalars(stmt.limit(limit))
     return [
         {"message": n.message, "type": n.type.value, "created_at": n.created_at}
         for n in rows

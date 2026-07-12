@@ -2,7 +2,23 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { apiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Table, Td } from "../components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Input,
+  Modal,
+  PageHeader,
+  SectionHeader,
+  Select,
+  Table,
+  Td,
+  Toggle,
+} from "../components/ui";
+import { CHART } from "../lib/theme";
+import { Award, Medal, Medallion, Trophy, badgeVisual } from "../components/icons";
 
 type Challenge = { id: number; title: string; xp_reward: number; points_reward: number; status: string; difficulty: string | null };
 type BadgeItem = { id: number; name: string; description: string | null; metric: string; threshold: number };
@@ -72,39 +88,74 @@ export default function Gamification() {
       {note && <p className="text-sm text-brand-700">{note}</p>}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
-          <p className="mb-3 text-sm font-medium text-slate-700">Leaderboard</p>
-          <Table head={["#", "Employee", "XP"]}>
-            {leaderboard.data?.map((row, i) => (
-              <tr key={row.employee_id}>
-                <Td className="font-semibold text-brand-700">{i + 1}</Td>
-                <Td>{row.name}</Td>
-                <Td className="font-medium">{row.xp_balance}</Td>
-              </tr>
-            ))}
-          </Table>
+        <Card title="Leaderboard" subtitle="Top performers by XP">
+          {(() => {
+            const top = (leaderboard.data ?? []).slice(0, 8);
+            if (top.length === 0) return <EmptyState title="No ranking yet" Icon={Trophy} />;
+            const max = Math.max(...top.map((r) => r.xp_balance), 1);
+            const medal = ["#f59e0b", "#94a3b8", "#b45309"];
+            return (
+              <ol className="space-y-2.5">
+                {top.map((r, i) => (
+                  <li key={r.employee_id} className="flex items-center gap-3">
+                    <span
+                      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                      style={
+                        i < 3
+                          ? { backgroundColor: `${medal[i]}22`, color: medal[i] }
+                          : { backgroundColor: "#f1f5f9", color: "#64748b" }
+                      }
+                    >
+                      {i < 3 ? <Medal size={15} /> : i + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="truncate font-medium text-slate-700">{r.name}</span>
+                        <span className="text-slate-500">{r.xp_balance} XP</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full rounded-full bg-slate-100">
+                        <div
+                          className="h-1.5 rounded-full"
+                          style={{ width: `${(r.xp_balance / max) * 100}%`, backgroundColor: CHART.esg }}
+                        />
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            );
+          })()}
         </Card>
 
-        <Card>
-          <p className="mb-3 text-sm font-medium text-slate-700">Badges</p>
-          <div className="space-y-2">
-            {badges.data?.map((b) => (
-              <div key={b.id} className="rounded-lg border border-slate-100 p-3">
-                <p className="text-sm font-medium text-slate-800">{b.name}</p>
-                <p className="text-xs text-slate-500">
-                  {b.description ?? `Reach ${b.threshold} ${b.metric.replaceAll("_", " ")}`}
-                </p>
-              </div>
-            ))}
+        <Card title="Badges" subtitle="Unlockable achievements">
+          <div className="scrollbar-thin max-h-[280px] space-y-2 overflow-y-auto pr-1">
+            {(badges.data ?? []).length === 0 ? (
+              <EmptyState title="No badges configured" Icon={Award} />
+            ) : (
+              badges.data?.map((b) => {
+                const { Icon, color } = badgeVisual(b.metric);
+                return (
+                  <div key={b.id} className="flex items-start gap-3 rounded-xl border border-slate-100 p-3">
+                    <Medallion Icon={Icon} color={color} size={36} />
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">{b.name}</p>
+                      <p className="text-xs text-slate-500">
+                        {b.description ?? `Reach ${b.threshold} ${b.metric.replaceAll("_", " ")}`}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </Card>
       </div>
 
       <div>
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-slate-700">Challenges</p>
-          {isManager && <Button onClick={() => setOpen(true)}>+ Add challenge</Button>}
-        </div>
+        <SectionHeader
+          title="Challenges"
+          actions={isManager && <Button onClick={() => setOpen(true)}>+ Add challenge</Button>}
+        />
         <Table head={["Challenge", "Difficulty", "XP", "Points", "Status", "Actions"]} scroll>
           {challenges.data?.map((c) => (
             <tr key={c.id}>
@@ -163,10 +214,12 @@ export default function Gamification() {
               </Select>
             </Field>
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={form.evidence_required} onChange={(e) => setForm({ ...form, evidence_required: e.target.checked })} />
-            Require evidence
-          </label>
+          <Toggle
+            checked={form.evidence_required}
+            onChange={(v) => setForm({ ...form, evidence_required: v })}
+            label="Require evidence"
+            description="Participants must upload proof before approval."
+          />
           <p className="text-xs text-slate-400">New challenges start as draft — activate them to open joining.</p>
           <Button className="w-full" onClick={() => create.mutate()} disabled={create.isPending}>
             Save challenge

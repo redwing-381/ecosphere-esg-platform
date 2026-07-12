@@ -1,8 +1,11 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import api, { apiError } from "../lib/api";
+import api, { apiError, fileUrl } from "../lib/api";
 import { useProfile } from "../lib/hooks";
-import { Badge, Card, PageHeader, Stat, Table, Td } from "../components/ui";
+import { Badge, Card, EmptyState, PageHeader, SectionHeader, Stat, Table, Td } from "../components/ui";
+import { Donut } from "../components/charts";
+import { CHART } from "../lib/theme";
+import { Award, Coins, Zap } from "../components/icons";
 
 interface BadgeItem {
   id: number;
@@ -64,6 +67,16 @@ export default function Profile() {
     onError: (e) => setError(apiError(e)),
   });
 
+  const allParts = [
+    ...(csr.data ?? []).map((p) => p.approval_status),
+    ...(challenges.data ?? []).map((p) => p.approval_status),
+  ];
+  const participationSlices = [
+    { label: "Approved", value: allParts.filter((s) => s === "approved").length, color: CHART.env },
+    { label: "Pending", value: allParts.filter((s) => s === "pending").length, color: CHART.amber },
+    { label: "Rejected", value: allParts.filter((s) => s === "rejected").length, color: CHART.rose },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader title="My Profile" subtitle={profile?.job_title ?? undefined} />
@@ -74,30 +87,38 @@ export default function Profile() {
           <p className="mt-2 text-lg font-semibold text-slate-800">{profile?.name}</p>
           <p className="text-sm text-slate-500">{profile?.department_name ?? "No department"}</p>
         </Card>
-        <Stat label="XP" value={profile?.xp_balance ?? 0} tone="green" />
-        <Stat label="Points" value={profile?.points_balance ?? 0} />
-        <Stat label="Badges" value={badges.data?.length ?? 0} />
+        <Stat label="XP" value={profile?.xp_balance ?? 0} tone="green" icon={<Zap size={20} />} />
+        <Stat label="Points" value={profile?.points_balance ?? 0} tone="sky" icon={<Coins size={20} />} />
+        <Stat label="Badges" value={badges.data?.length ?? 0} tone="violet" icon={<Award size={20} />} />
       </div>
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
-      <Card>
-        <p className="mb-3 text-sm font-medium text-slate-700">My badges</p>
-        {badges.data?.length ? (
-          <div className="flex flex-wrap gap-2">
-            {badges.data.map((b) => (
-              <span key={b.id} className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm text-brand-800" title={b.description ?? ""}>
-                🏅 {b.name}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-slate-500">No badges yet — join activities to earn them.</p>
-        )}
-      </Card>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Card title="Participation status" subtitle="Across CSR & challenges">
+          <Donut data={participationSlices} height={220} />
+        </Card>
+        <Card title="My badges" subtitle="Achievements earned" className="lg:col-span-2">
+          {badges.data?.length ? (
+            <div className="flex flex-wrap gap-2">
+              {badges.data.map((b) => (
+                <span
+                  key={b.id}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-800"
+                  title={b.description ?? ""}
+                >
+                  <Award size={15} /> {b.name}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="No badges yet" hint="Join activities to earn them." Icon={Award} />
+          )}
+        </Card>
+      </div>
 
       <div>
-        <p className="mb-3 text-sm font-medium text-slate-700">My CSR participations</p>
+        <SectionHeader title="My CSR participations" />
         <ParticipationTable
           rows={(csr.data ?? []).map((p) => ({
             id: p.id,
@@ -112,7 +133,7 @@ export default function Profile() {
       </div>
 
       <div>
-        <p className="mb-3 text-sm font-medium text-slate-700">My challenge participations</p>
+        <SectionHeader title="My challenge participations" />
         <ParticipationTable
           rows={(challenges.data ?? []).map((p) => ({
             id: p.id,
@@ -153,7 +174,7 @@ export default function Profile() {
               <Td>{r.reward}</Td>
               <Td>
                 {r.proof ? (
-                  <a className="text-brand-700 hover:underline" href={`/${r.proof}`} target="_blank" rel="noreferrer">
+                  <a className="text-brand-700 hover:underline" href={fileUrl(r.proof)} target="_blank" rel="noreferrer">
                     View
                   </a>
                 ) : r.status === "pending" ? (

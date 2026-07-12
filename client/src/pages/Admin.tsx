@@ -11,6 +11,7 @@ import {
   PageHeader,
   Select,
   Table,
+  Tabs,
   Td,
   Textarea,
   Toggle,
@@ -47,13 +48,11 @@ export default function Admin() {
   return (
     <div className="space-y-6">
       <PageHeader title="Admin Console" subtitle="Manage organization settings and master data." />
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
-          <Button key={t} variant={tab === t ? "primary" : "ghost"} onClick={() => setTab(t)}>
-            {t}
-          </Button>
-        ))}
-      </div>
+      <Tabs
+        items={TABS.map((t) => ({ id: t, label: t }))}
+        value={tab}
+        onChange={(id) => setTab(id as (typeof TABS)[number])}
+      />
       {tab === "Organization" && <OrganizationPanel />}
       {tab === "Departments" && <DepartmentsPanel />}
       {tab === "Employees" && <EmployeesPanel />}
@@ -123,10 +122,10 @@ function FormModal({
                 ))}
               </Select>
             ) : f.type === "checkbox" ? (
-              <input
-                type="checkbox"
+              <Toggle
                 checked={!!values[f.name]}
-                onChange={(e) => setValues({ ...values, [f.name]: e.target.checked })}
+                onChange={(v) => setValues({ ...values, [f.name]: v })}
+                label={values[f.name] ? "Enabled" : "Disabled"}
               />
             ) : f.type === "textarea" ? (
               <Textarea

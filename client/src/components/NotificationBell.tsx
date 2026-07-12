@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../lib/api";
+import { Bell } from "./icons";
 
 interface Notification {
   id: number;
@@ -43,7 +44,7 @@ export default function NotificationBell() {
         onClick={() => setOpen((v) => !v)}
         aria-label="Notifications"
       >
-        <span className="text-lg">🔔</span>
+        <Bell size={18} />
         {unread > 0 && (
           <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold text-white">
             {unread}

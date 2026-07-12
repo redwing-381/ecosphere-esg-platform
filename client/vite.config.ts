@@ -10,4 +10,15 @@ export default defineConfig({
       "/uploads": "http://localhost:8000",
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split heavy vendors so the main bundle stays lean.
+        manualChunks: {
+          charts: ["@mui/x-charts", "@mui/material", "@emotion/react", "@emotion/styled"],
+          vendor: ["react", "react-dom", "react-router-dom", "@tanstack/react-query", "axios"],
+        },
+      },
+    },
+  },
 });

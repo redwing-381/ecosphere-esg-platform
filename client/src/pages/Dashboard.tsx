@@ -1,21 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import api from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useDepartmentNames } from "../lib/hooks";
-import { Badge, Card, PageHeader, Stat, Table, Td } from "../components/ui";
+import { CHART } from "../lib/theme";
+import { Badge, Card, EmptyState, PageHeader, SectionHeader, Stat, Table, Td } from "../components/ui";
+import { Radar, ScoreGauge, TrendLine } from "../components/charts";
+import { CheckCircle2, Clock, Globe, Medallion, TriangleAlert, Users, activityVisual } from "../components/icons";
 
 type Dashboard = {
   overall_score: number | null;
@@ -50,10 +41,9 @@ type Issue = {
 type MonthlyEmission = { month: string; co2e: number };
 type Activity = { message: string; type: string; created_at: string };
 
-const BAND = (v: number) => (v >= 70 ? "#16a34a" : v >= 40 ? "#d97706" : "#e11d48");
 const sevTone: Record<string, string> = { critical: "rose", high: "rose", medium: "amber", low: "slate" };
 
-/** A colored, clickable score tile linking through to its module. */
+/** A colored, clickable score tile with a band-colored progress bar. */
 function ScoreTile({
   label,
   value,
@@ -65,16 +55,23 @@ function ScoreTile({
   color: string;
   to: string;
 }) {
+  const pct = value == null ? 0 : Math.max(0, Math.min(100, value));
   return (
     <Link
       to={to}
-      className="block rounded-xl border-2 bg-white p-4 shadow-sm transition hover:shadow-md"
-      style={{ borderColor: color }}
+      className="group block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
     >
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-bold" style={{ color }}>
-        {value ?? "—"} <span className="text-lg text-slate-400">/ 100</span>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-slate-500">{label}</p>
+        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+      </div>
+      <p className="mt-2 text-3xl font-bold tracking-tight" style={{ color }}>
+        {value ?? "—"}
+        <span className="text-base font-medium text-slate-400"> / 100</span>
       </p>
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+      </div>
     </Link>
   );
 }
@@ -82,21 +79,24 @@ function ScoreTile({
 function IssuesTable({ title, issues }: { title: string; issues: Issue[] }) {
   return (
     <div>
-      <p className="mb-3 text-sm font-medium text-slate-700">{title}</p>
+      <SectionHeader title={title} />
       <Table head={["Issue", "Severity", "Assigned to", "Due"]} scroll>
         {issues.length === 0 ? (
           <tr>
-            <Td className="text-slate-400">Nothing open — you're all clear.</Td>
-            <Td /> <Td /> <Td />
+            <td colSpan={4}>
+              <EmptyState title="Nothing open" hint="You're all clear." Icon={CheckCircle2} />
+            </td>
           </tr>
         ) : (
           issues.map((i) => (
-            <tr key={i.id}>
+            <tr key={i.id} className="hover:bg-slate-50">
               <Td className="font-medium">
                 {i.description}
                 {i.is_overdue && (
                   <span className="ml-2">
-                    <Badge tone="rose">Overdue</Badge>
+                    <Badge tone="rose" dot>
+                      Overdue
+                    </Badge>
                   </span>
                 )}
               </Td>
@@ -148,105 +148,113 @@ export default function Dashboard() {
   const openIssues = (issues ?? []).filter((i) => i.status !== "resolved");
   const openAllIssues = (allIssues ?? []).filter((i) => i.status !== "resolved");
   const myTitle =
-    user?.role === "employee"
-      ? "My open compliance issues"
-      : "Open compliance issues in my department";
+    user?.role === "employee" ? "My open compliance issues" : "Open compliance issues in my department";
 
-  const chart =
-    scores?.departments
-      .filter((d) => d.total !== null)
-      .map((d) => ({ name: deptNames[d.department_id] ?? `Dept ${d.department_id}`, total: d.total as number })) ?? [];
+  const radarSeries = (scores?.departments ?? [])
+    .filter((d) => d.total !== null)
+    .map((d) => ({
+      label: deptNames[d.department_id] ?? `Dept ${d.department_id}`,
+      data: [d.environmental ?? 0, d.social ?? 0, d.governance ?? 0],
+    }));
+
+  const pillars = [
+    { label: "Environmental", value: summary?.env_score ?? null, color: CHART.env },
+    { label: "Social", value: summary?.social_score ?? null, color: CHART.social },
+    { label: "Governance", value: summary?.gov_score ?? null, color: CHART.gov },
+  ];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="ESG Overview"
         subtitle="Live environmental, social and governance performance across the organization."
+        actions={
+          <>
+            <Link
+              to="/environmental"
+              className="inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-brand-700"
+            >
+              Log carbon data
+            </Link>
+            <Link
+              to="/reports"
+              className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50"
+            >
+              View reports
+            </Link>
+          </>
+        }
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <ScoreTile label="Environmental Score" value={summary?.env_score ?? null} color="#16a34a" to="/environmental" />
-        <ScoreTile label="Social Score" value={summary?.social_score ?? null} color="#0ea5e9" to="/social" />
-        <ScoreTile label="Governance Score" value={summary?.gov_score ?? null} color="#7c3aed" to="/governance" />
-        <ScoreTile label="ESG Score" value={summary?.overall_score ?? null} color="#4f46e5" to="/reports" />
+        <ScoreTile label="Environmental" value={summary?.env_score ?? null} color={CHART.env} to="/environmental" />
+        <ScoreTile label="Social" value={summary?.social_score ?? null} color={CHART.social} to="/social" />
+        <ScoreTile label="Governance" value={summary?.gov_score ?? null} color={CHART.gov} to="/governance" />
+        <ScoreTile label="ESG Score" value={summary?.overall_score ?? null} color={CHART.esg} to="/reports" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Stat label="Total CO2e (kg)" value={summary ? summary.total_co2e.toFixed(1) : "—"} />
-        <Stat label="Open compliance issues" value={summary?.open_issues ?? "—"} />
-        <Stat label="Active employees" value={summary?.employee_count ?? "—"} />
+        <Stat
+          label="Total CO₂e (kg)"
+          value={summary ? summary.total_co2e.toFixed(1) : "—"}
+          icon={<Globe size={20} />}
+        />
+        <Stat
+          label="Open compliance issues"
+          value={summary?.open_issues ?? "—"}
+          tone={summary && summary.open_issues > 0 ? "slate" : "green"}
+          icon={<TriangleAlert size={20} />}
+        />
+        <Stat label="Active employees" value={summary?.employee_count ?? "—"} icon={<Users size={20} />} />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
-          <p className="mb-4 text-sm font-medium text-slate-700">Emissions trend (last 12 months)</p>
-          {(trend ?? []).length === 0 ? (
-            <p className="text-sm text-slate-500">No carbon data logged yet.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={trend}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="month" fontSize={11} />
-                <YAxis fontSize={11} />
-                <Tooltip />
-                <Line type="monotone" dataKey="co2e" stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Card title="Emissions trend" subtitle="Monthly CO₂e over the last year" className="lg:col-span-2">
+          <TrendLine
+            labels={(trend ?? []).map((t) => t.month)}
+            values={(trend ?? []).map((t) => t.co2e)}
+            color={CHART.env}
+            valueLabel="CO₂e (kg)"
+          />
         </Card>
 
-        <Card>
-          <p className="mb-4 text-sm font-medium text-slate-700">Department ESG ranking</p>
-          {chart.length === 0 ? (
-            <p className="text-sm text-slate-500">No scored departments yet.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={chart}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" fontSize={12} />
-                <YAxis domain={[0, 100]} fontSize={12} />
-                <Tooltip />
-                <Bar dataKey="total" radius={[6, 6, 0, 0]}>
-                  {chart.map((row) => (
-                    <Cell key={row.name} fill={BAND(row.total)} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+        <Card title="Score by pillar" subtitle="Organization-wide">
+          <div className="grid grid-cols-3 gap-2">
+            {pillars.map((p) => (
+              <div key={p.label} className="flex flex-col items-center">
+                <ScoreGauge value={p.value} color={p.color} height={120} />
+                <p className="mt-1 text-center text-xs font-medium text-slate-500">{p.label}</p>
+              </div>
+            ))}
+          </div>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
-          <p className="mb-3 text-sm font-medium text-slate-700">Recent activity</p>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Card
+          title="Department pillar comparison"
+          subtitle="Environmental · Social · Governance by department"
+          className="lg:col-span-2"
+        >
+          <Radar metrics={["Environmental", "Social", "Governance"]} series={radarSeries} max={100} />
+        </Card>
+
+        <Card title="Recent activity" subtitle="Latest in your scope">
           {(activity ?? []).length === 0 ? (
-            <p className="text-sm text-slate-500">No recent activity.</p>
+            <EmptyState title="No recent activity" Icon={Clock} />
           ) : (
-            <ul className="space-y-2 text-sm text-slate-600">
-              {activity?.map((a, idx) => (
-                <li key={idx} className="flex items-start gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand-500" />
-                  <span>{a.message}</span>
-                </li>
-              ))}
+            <ul className="scrollbar-thin max-h-[280px] space-y-3 overflow-y-auto pr-1 text-sm text-slate-600">
+              {activity?.map((a, idx) => {
+                const { Icon, color } = activityVisual(a.type);
+                return (
+                  <li key={idx} className="flex items-start gap-2.5">
+                    <Medallion Icon={Icon} color={color} size={28} />
+                    <span className="pt-1">{a.message}</span>
+                  </li>
+                );
+              })}
             </ul>
           )}
-        </Card>
-
-        <Card>
-          <p className="mb-3 text-sm font-medium text-slate-700">Quick actions</p>
-          <div className="flex flex-col gap-2">
-            <Link to="/environmental" className="rounded-lg bg-brand-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-brand-700">
-              Log carbon data
-            </Link>
-            <Link to="/gamification" className="rounded-lg bg-amber-500 px-4 py-2 text-center text-sm font-medium text-white hover:bg-amber-600">
-              Start a challenge
-            </Link>
-            <Link to="/reports" className="rounded-lg bg-slate-700 px-4 py-2 text-center text-sm font-medium text-white hover:bg-slate-800">
-              View reports
-            </Link>
-          </div>
         </Card>
       </div>
 

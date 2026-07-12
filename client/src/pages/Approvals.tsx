@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import api, { apiError } from "../lib/api";
-import { Badge, Button, PageHeader, Table, Td } from "../components/ui";
+import api, { apiError, fileUrl } from "../lib/api";
+import { Badge, Button, EmptyState, PageHeader, Tabs, Td, Table } from "../components/ui";
+import { CheckCircle2 } from "../components/icons";
 
 interface CsrPart {
   id: number;
@@ -52,14 +53,14 @@ export default function Approvals() {
       <PageHeader title="Approvals" subtitle="Review evidence and approve or reject submissions in your scope." />
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
-      <div className="flex gap-2">
-        <Button variant={tab === "csr" ? "primary" : "ghost"} onClick={() => setTab("csr")}>
-          CSR ({csrRows.length})
-        </Button>
-        <Button variant={tab === "challenge" ? "primary" : "ghost"} onClick={() => setTab("challenge")}>
-          Challenges ({challengeRows.length})
-        </Button>
-      </div>
+      <Tabs
+        items={[
+          { id: "csr", label: "CSR", count: csrRows.length },
+          { id: "challenge", label: "Challenges", count: challengeRows.length },
+        ]}
+        value={tab}
+        onChange={(id) => setTab(id as "csr" | "challenge")}
+      />
 
       {tab === "csr" ? (
         <Table head={["Employee", "Activity", "Proof", "Decision"]}>
@@ -97,7 +98,7 @@ export default function Approvals() {
 
   function proofLink(url: string | null) {
     return url ? (
-      <a className="text-brand-700 hover:underline" href={`/${url}`} target="_blank" rel="noreferrer">
+      <a className="text-brand-700 hover:underline" href={fileUrl(url)} target="_blank" rel="noreferrer">
         View
       </a>
     ) : (
@@ -122,8 +123,9 @@ export default function Approvals() {
 function EmptyRow() {
   return (
     <tr>
-      <Td className="text-slate-400">No pending submissions.</Td>
-      <Td /> <Td /> <Td />
+      <td colSpan={4}>
+        <EmptyState title="No pending submissions" hint="You're all caught up." Icon={CheckCircle2} />
+      </td>
     </tr>
   );
 }
