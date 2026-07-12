@@ -81,3 +81,4 @@ class NotificationType(str, enum.Enum):
     APPROVAL_DECISION = "approval_decision"
     POLICY_REMINDER = "policy_reminder"
     BADGE_UNLOCK = "badge_unlock"
+    TRAINING_ASSIGNED = "training_assigned"

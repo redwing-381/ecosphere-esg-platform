@@ -21,12 +21,18 @@ from app.models.enums import (
 from app.models.master import Category, Training
 from app.models.notification import Notification
 from app.models.people import Employee
-from app.models.social import CSRActivity, EmployeeParticipation, TrainingCompletion
+from app.models.social import (
+    CSRActivity,
+    EmployeeParticipation,
+    TrainingAssignment,
+    TrainingCompletion,
+)
 from app.modules.settings.service import get_organization
 from app.modules.social.schemas import (
     CategoryCreate,
     CSRActivityCreate,
     TrainingCreate,
+    TrainingUpdate,
 )
 
 
@@ -226,9 +232,110 @@ def create_training(db: Session, data: TrainingCreate) -> Training:
     return training
 
 
+def update_training(db: Session, training_id: int, data: TrainingUpdate) -> Training:
+    training = db.get(Training, training_id)
+    if training is None:
+        raise NotFoundError("Training not found")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(training, field, value)
+    db.commit()
+    db.refresh(training)
+    return training
+
+
+def delete_training(db: Session, training_id: int) -> None:
+    """Remove a course along with its assignments and completion records."""
+    training = db.get(Training, training_id)
+    if training is None:
+        raise NotFoundError("Training not found")
+    db.query(TrainingAssignment).filter(TrainingAssignment.training_id == training_id).delete()
+    db.query(TrainingCompletion).filter(TrainingCompletion.training_id == training_id).delete()
+    db.delete(training)
+    db.commit()
+
+
+def assign_training(
+    db: Session, training_id: int, employee_ids: list[int], assigned_by: int
+) -> int:
+    """Enable a course for the given employees; returns how many were newly enabled."""
+    if db.get(Training, training_id) is None:
+        raise NotFoundError("Training not found")
+    existing = set(
+        db.scalars(
+            select(TrainingAssignment.employee_id).where(
+                TrainingAssignment.training_id == training_id
+            )
+        )
+    )
+    added = 0
+    for emp_id in employee_ids:
+        if emp_id in existing:
+            continue
+        db.add(
+            TrainingAssignment(
+                training_id=training_id, employee_id=emp_id, assigned_by=assigned_by
+            )
+        )
+        db.add(
+            Notification(
+                recipient_id=emp_id,
+                type=NotificationType.TRAINING_ASSIGNED,
+                message=f"A new course was assigned to you: {db.get(Training, training_id).name}.",
+            )
+        )
+        added += 1
+    db.commit()
+    return added
+
+
+def list_assigned_employees(db: Session, training_id: int) -> list[int]:
+    return list(
+        db.scalars(
+            select(TrainingAssignment.employee_id).where(
+                TrainingAssignment.training_id == training_id
+            )
+        )
+    )
+
+
+def list_my_trainings(db: Session, employee_id: int) -> list[dict]:
+    """Return only the courses enabled for this employee, with completion state."""
+    completed = set(
+        db.scalars(
+            select(TrainingCompletion.training_id).where(
+                TrainingCompletion.employee_id == employee_id
+            )
+        )
+    )
+    rows = db.execute(
+        select(Training)
+        .join(TrainingAssignment, TrainingAssignment.training_id == Training.id)
+        .where(TrainingAssignment.employee_id == employee_id)
+        .order_by(Training.name)
+    ).scalars()
+    return [
+        {
+            "id": t.id,
+            "name": t.name,
+            "description": t.description,
+            "mandatory": t.mandatory,
+            "completed": t.id in completed,
+        }
+        for t in rows
+    ]
+
+
 def complete_training(db: Session, training_id: int, employee_id: int) -> TrainingCompletion:
     if db.get(Training, training_id) is None:
         raise NotFoundError("Training not found")
+    assigned = db.scalar(
+        select(TrainingAssignment).where(
+            TrainingAssignment.training_id == training_id,
+            TrainingAssignment.employee_id == employee_id,
+        )
+    )
+    if assigned is None:
+        raise ForbiddenError("This course has not been enabled for you")
     exists = db.scalar(
         select(TrainingCompletion).where(
             TrainingCompletion.training_id == training_id,

@@ -10,19 +10,23 @@ from app.models.enums import ApprovalStatus, CategoryType, UserRole
 from app.models.people import Employee, User
 from app.modules.social import service
 from app.modules.social.schemas import (
+    AssignmentRequest,
     CategoryCreate,
     CategoryOut,
     CSRActivityCreate,
     CSRActivityOut,
     DiversityRow,
+    MyTrainingOut,
     ParticipationDetail,
     ParticipationOut,
     TrainingCreate,
     TrainingOut,
+    TrainingUpdate,
 )
 
 router = APIRouter(prefix="/social", tags=["social"])
 manage = require_roles(UserRole.ADMIN, UserRole.DEPT_HEAD)
+admin_only = require_roles(UserRole.ADMIN)
 
 
 def _employee_id(user: User) -> int:
@@ -117,14 +121,57 @@ def reject(
 
 @router.get("/trainings", response_model=list[TrainingOut])
 def list_trainings(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    """List training courses."""
+    """List all training courses (managers and admins)."""
     return service.list_trainings(db)
 
 
+@router.get("/my-trainings", response_model=list[MyTrainingOut])
+def my_trainings(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """List only the courses enabled for the current employee."""
+    return service.list_my_trainings(db, _employee_id(user))
+
+
 @router.post("/trainings", response_model=TrainingOut, status_code=201)
-def create_training(data: TrainingCreate, db: Session = Depends(get_db), _=Depends(manage)):
-    """Create a training course."""
+def create_training(data: TrainingCreate, db: Session = Depends(get_db), _=Depends(admin_only)):
+    """Create a training course (admin only)."""
     return service.create_training(db, data)
+
+
+@router.patch("/trainings/{training_id}", response_model=TrainingOut)
+def update_training(
+    training_id: int, data: TrainingUpdate, db: Session = Depends(get_db), _=Depends(admin_only)
+):
+    """Modify a training course (admin only)."""
+    return service.update_training(db, training_id, data)
+
+
+@router.delete("/trainings/{training_id}", status_code=204)
+def delete_training(training_id: int, db: Session = Depends(get_db), _=Depends(admin_only)):
+    """Delete a training course (admin only)."""
+    service.delete_training(db, training_id)
+
+
+@router.get("/trainings/{training_id}/assignments", response_model=list[int])
+def training_assignments(training_id: int, db: Session = Depends(get_db), _=Depends(manage)):
+    """List the employee ids a course is enabled for."""
+    return service.list_assigned_employees(db, training_id)
+
+
+@router.post("/trainings/{training_id}/assign")
+def assign_training(
+    training_id: int,
+    data: AssignmentRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(manage),
+):
+    """Enable a course for employees (dept heads limited to their department)."""
+    scope = _review_scope(db, user)
+    if scope is not None:
+        allowed = {e.id for e in db.query(Employee).filter(Employee.department_id == scope)}
+        invalid = [e for e in data.employee_ids if e not in allowed]
+        if invalid:
+            raise ValidationError("You can only assign courses to your own department")
+    return {"assigned": service.assign_training(db, training_id, data.employee_ids, _employee_id(user))}
 
 
 @router.post("/trainings/{training_id}/complete", status_code=201)
