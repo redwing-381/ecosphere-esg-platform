@@ -14,12 +14,35 @@ from app.modules.governance.schemas import (
     AuditCreate,
     AuditUpdate,
     IssueCreate,
+    IssueUpdate,
     PolicyCreate,
 )
 
 
-def list_policies(db: Session) -> list[ESGPolicy]:
-    return list(db.scalars(select(ESGPolicy).order_by(ESGPolicy.name)))
+def list_policies(db: Session, employee_id: int | None = None) -> list[dict]:
+    """List policies, flagging whether the given employee acknowledged the current version."""
+    policies = list(db.scalars(select(ESGPolicy).order_by(ESGPolicy.name)))
+    acked: set[tuple[int, int]] = set()
+    if employee_id is not None:
+        rows = db.execute(
+            select(
+                PolicyAcknowledgement.policy_id, PolicyAcknowledgement.policy_version
+            ).where(PolicyAcknowledgement.employee_id == employee_id)
+        ).all()
+        acked = {(pid, ver) for pid, ver in rows}
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "pillar": p.pillar,
+            "version": p.version,
+            "effective_date": p.effective_date,
+            "requires_ack": p.requires_ack,
+            "status": p.status,
+            "acknowledged": (p.id, p.version) in acked,
+        }
+        for p in policies
+    ]
 
 
 def create_policy(db: Session, data: PolicyCreate) -> ESGPolicy:
@@ -113,19 +136,45 @@ def list_issues(
 
 
 def create_issue(db: Session, data: IssueCreate, created_by: int) -> ComplianceIssue:
-    """Create a compliance issue, recording its creator and notifying the assignee."""
-    issue = ComplianceIssue(**data.model_dump(), created_by=created_by)
+    """Create a compliance issue owned by (and raised by) the current employee."""
+    issue = ComplianceIssue(
+        **data.model_dump(), owner_id=created_by, created_by=created_by
+    )
     issue.is_overdue = issue.due_date < date.today()
     db.add(issue)
-    db.flush()
-    notifications.dispatch(
-        db, issue.owner_id, NotificationType.COMPLIANCE_ISSUE,
-        f"A {issue.severity.value} compliance issue was assigned to you.",
-        "compliance_issue", issue.id,
-    )
     db.commit()
     db.refresh(issue)
     return issue
+
+
+def update_issue(
+    db: Session, issue_id: int, data: IssueUpdate, actor_employee_id: int | None, is_manager: bool
+) -> ComplianceIssue:
+    """Edit an issue; allowed for managers or the employee who raised it."""
+    issue = db.get(ComplianceIssue, issue_id)
+    if issue is None:
+        raise NotFoundError("Compliance issue not found")
+    if not is_manager and issue.created_by != actor_employee_id:
+        raise ForbiddenError("You can only edit issues you raised")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(issue, field, value)
+    issue.is_overdue = issue.status != IssueStatus.RESOLVED and issue.due_date < date.today()
+    db.commit()
+    db.refresh(issue)
+    return issue
+
+
+def delete_issue(
+    db: Session, issue_id: int, actor_employee_id: int | None, is_manager: bool
+) -> None:
+    """Delete an issue; allowed for managers or the employee who raised it."""
+    issue = db.get(ComplianceIssue, issue_id)
+    if issue is None:
+        raise NotFoundError("Compliance issue not found")
+    if not is_manager and issue.created_by != actor_employee_id:
+        raise ForbiddenError("You can only delete issues you raised")
+    db.delete(issue)
+    db.commit()
 
 
 def resolve_issue(db: Session, issue_id: int, actor_employee_id: int, is_manager: bool) -> ComplianceIssue:

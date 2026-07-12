@@ -22,6 +22,7 @@ class PolicyOut(BaseModel):
     effective_date: date
     requires_ack: bool
     status: Status
+    acknowledged: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -53,11 +54,19 @@ class AuditOut(BaseModel):
 
 
 class IssueCreate(BaseModel):
+    """Raise an issue for yourself; the owner is always the creator."""
+
     audit_id: int | None = None
     severity: IssueSeverity = IssueSeverity.MEDIUM
     description: str = Field(min_length=3)
-    owner_id: int
     due_date: date
+
+
+class IssueUpdate(BaseModel):
+    severity: IssueSeverity | None = None
+    description: str | None = Field(default=None, min_length=3)
+    due_date: date | None = None
+    status: IssueStatus | None = None
 
 
 class IssueOut(BaseModel):
