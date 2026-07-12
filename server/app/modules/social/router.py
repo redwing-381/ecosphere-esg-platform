@@ -1,0 +1,116 @@
+"""Social module endpoints."""
+from fastapi import APIRouter, Depends, File, UploadFile
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.core.exceptions import ValidationError
+from app.core.uploads import save_proof
+from app.deps.auth import get_current_user, require_roles
+from app.models.enums import CategoryType, UserRole
+from app.models.people import User
+from app.modules.social import service
+from app.modules.social.schemas import (
+    CategoryCreate,
+    CategoryOut,
+    CSRActivityCreate,
+    CSRActivityOut,
+    DiversityRow,
+    ParticipationOut,
+    TrainingCreate,
+    TrainingOut,
+)
+
+router = APIRouter(prefix="/social", tags=["social"])
+manage = require_roles(UserRole.ADMIN, UserRole.DEPT_HEAD)
+
+
+def _employee_id(user: User) -> int:
+    if user.employee_id is None:
+        raise ValidationError("Your account is not linked to an employee")
+    return user.employee_id
+
+
+@router.get("/categories", response_model=list[CategoryOut])
+def list_categories(
+    type: CategoryType | None = None, db: Session = Depends(get_db), _=Depends(get_current_user)
+):
+    """List categories, optionally filtered by type."""
+    return service.list_categories(db, type)
+
+
+@router.post("/categories", response_model=CategoryOut, status_code=201)
+def create_category(data: CategoryCreate, db: Session = Depends(get_db), _=Depends(manage)):
+    """Create a category."""
+    return service.create_category(db, data)
+
+
+@router.get("/csr-activities", response_model=list[CSRActivityOut])
+def list_csr(db: Session = Depends(get_db), _=Depends(get_current_user)):
+    """List CSR activities."""
+    return service.list_csr(db)
+
+
+@router.post("/csr-activities", response_model=CSRActivityOut, status_code=201)
+def create_csr(data: CSRActivityCreate, db: Session = Depends(get_db), _=Depends(manage)):
+    """Create a CSR activity."""
+    return service.create_csr(db, data)
+
+
+@router.post("/csr-activities/{activity_id}/join", response_model=ParticipationOut, status_code=201)
+def join_csr(activity_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Join a CSR activity as the current employee."""
+    return service.join_csr(db, activity_id, _employee_id(user))
+
+
+@router.post("/participations/{participation_id}/proof", response_model=ParticipationOut)
+def upload_proof(
+    participation_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Attach a proof file to a participation."""
+    return service.attach_proof(db, participation_id, save_proof(file))
+
+
+@router.post("/participations/{participation_id}/approve", response_model=ParticipationOut)
+def approve(
+    participation_id: int, db: Session = Depends(get_db), user: User = Depends(manage)
+):
+    """Approve a participation and award XP/points."""
+    return service.approve_participation(db, participation_id, _employee_id(user))
+
+
+@router.post("/participations/{participation_id}/reject", response_model=ParticipationOut)
+def reject(
+    participation_id: int, db: Session = Depends(get_db), user: User = Depends(manage)
+):
+    """Reject a participation."""
+    return service.reject_participation(db, participation_id, _employee_id(user))
+
+
+@router.get("/trainings", response_model=list[TrainingOut])
+def list_trainings(db: Session = Depends(get_db), _=Depends(get_current_user)):
+    """List training courses."""
+    return service.list_trainings(db)
+
+
+@router.post("/trainings", response_model=TrainingOut, status_code=201)
+def create_training(data: TrainingCreate, db: Session = Depends(get_db), _=Depends(manage)):
+    """Create a training course."""
+    return service.create_training(db, data)
+
+
+@router.post("/trainings/{training_id}/complete", status_code=201)
+def complete_training(
+    training_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
+    """Mark a training as completed by the current employee."""
+    service.complete_training(db, training_id, _employee_id(user))
+    return {"message": "Training marked as completed"}
+
+
+@router.get("/diversity", response_model=list[DiversityRow])
+def diversity(db: Session = Depends(get_db), _=Depends(get_current_user)):
+    """Return diversity breakdown by department and gender."""
+    return service.diversity_breakdown(db)
