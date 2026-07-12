@@ -1,0 +1,15 @@
+flowchart LR
+    User(("User browser"))
+
+    subgraph Vercel["Vercel"]
+        FE["Static SPA<br/>(client build + SPA rewrites)"]
+        BE["Serverless functions<br/>FastAPI (NullPool pooling)"]
+    end
+
+    Neon[("Neon<br/>PostgreSQL")]
+    BlobStore[("Vercel Blob<br/>proof uploads")]
+
+    User --> FE
+    FE -->|"VITE_API_URL /api/v1"| BE
+    BE --> Neon
+    BE --> BlobStore

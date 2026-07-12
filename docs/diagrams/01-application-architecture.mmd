@@ -1,0 +1,25 @@
+flowchart LR
+    subgraph Client["Client — React + Vite + TypeScript"]
+        direction TB
+        Pages["Pages<br/>Dashboard · Environmental · Social<br/>Governance · Gamification · Rewards<br/>Simulator · Reports · Admin"]
+        UI["Design system<br/>ui.tsx · MUI X charts · lucide"]
+        Data["Data layer<br/>TanStack Query · Axios · Auth context"]
+        Pages --> UI
+        Pages --> Data
+    end
+
+    Data -->|"HTTPS · JWT · /api/v1"| Edge
+
+    subgraph Backend["Backend — FastAPI (Python)"]
+        direction LR
+        Edge["Middleware<br/>CORS allowlist<br/>JWT auth + RBAC<br/>Pydantic validation<br/>error envelope"]
+        Routers["API layer<br/>13 module routers<br/>auth · environmental<br/>social · governance<br/>gamification · rewards<br/>simulator · analytics<br/>reports · …"]
+        Services["Service layer<br/>business rules<br/>role/dept scope<br/>transactions<br/>workflow state"]
+        Engines["Domain engines<br/>carbon · scoring<br/>gamification<br/>simulator<br/>notifications"]
+        ORM["Data access<br/>SQLAlchemy 2.0<br/>models"]
+        Edge --> Routers --> Services --> Engines --> ORM
+        Services --> ORM
+    end
+
+    ORM -->|"SQLAlchemy + Alembic"| DB[("PostgreSQL")]
+    Services -->|"proof files"| Blob[("Object storage")]
