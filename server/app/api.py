@@ -11,6 +11,7 @@ from app.modules.governance.router import router as governance_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.rewards.router import router as rewards_router
 from app.modules.settings.router import router as settings_router
+from app.modules.simulator.router import router as simulator_router
 from app.modules.social.router import router as social_router
 
 api_router = APIRouter(prefix="/api/v1")
@@ -24,4 +25,5 @@ api_router.include_router(governance_router)
 api_router.include_router(notifications_router)
 api_router.include_router(rewards_router)
 api_router.include_router(settings_router)
+api_router.include_router(simulator_router)
 api_router.include_router(social_router)
