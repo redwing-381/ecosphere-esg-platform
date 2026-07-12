@@ -125,3 +125,56 @@ export function Table({ head, children }: { head: string[]; children: React.Reac
 export function Td({ children, className = "" }: { children?: React.ReactNode; className?: string }) {
   return <td className={`px-4 py-2.5 text-slate-700 ${className}`}>{children}</td>;
 }
+
+export const Textarea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
+  function Textarea({ className = "", ...props }, ref) {
+    return (
+      <textarea
+        ref={ref}
+        className={`w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${className}`}
+        {...props}
+      />
+    );
+  }
+);
+
+/** Labelled form field wrapper. */
+export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block space-y-1">
+      <span className="text-xs font-medium text-slate-500">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+/** Centered modal dialog with a backdrop. */
+export function Modal({
+  open,
+  title,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
+          <button className="text-slate-400 hover:text-slate-600" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
