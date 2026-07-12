@@ -7,6 +7,8 @@ const NAV = [
   { to: "/social", label: "Social" },
   { to: "/governance", label: "Governance" },
   { to: "/gamification", label: "Gamification" },
+  { to: "/rewards", label: "Rewards" },
+  { to: "/simulator", label: "What-If Simulator" },
   { to: "/reports", label: "Reports" },
 ];
 
