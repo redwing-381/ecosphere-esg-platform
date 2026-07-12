@@ -6,11 +6,12 @@ from app.core.database import get_db
 from app.core.exceptions import ValidationError
 from app.deps.auth import get_current_user, require_roles
 from app.models.enums import UserRole
-from app.models.people import User
+from app.models.people import Employee, User
 from app.modules.governance import service
 from app.modules.governance.schemas import (
     AuditCreate,
     AuditOut,
+    AuditUpdate,
     IssueCreate,
     IssueOut,
     PolicyCreate,
@@ -26,6 +27,14 @@ def _employee_id(user: User) -> int:
     if user.employee_id is None:
         raise ValidationError("Your account is not linked to an employee")
     return user.employee_id
+
+
+def _dept_scope(db: Session, user: User) -> int | None:
+    """Department a dept-head is limited to (None for admins)."""
+    if user.role == UserRole.DEPT_HEAD and user.employee_id:
+        employee = db.get(Employee, user.employee_id)
+        return employee.department_id if employee else None
+    return None
 
 
 @router.get("/policies", response_model=list[PolicyOut])
@@ -59,22 +68,35 @@ def create_audit(data: AuditCreate, db: Session = Depends(get_db), _=Depends(man
     return service.create_audit(db, data)
 
 
+@router.patch("/audits/{audit_id}", response_model=AuditOut)
+def update_audit(
+    audit_id: int, data: AuditUpdate, db: Session = Depends(get_db), _=Depends(manage)
+):
+    """Update an audit's result or findings."""
+    return service.update_audit(db, audit_id, data)
+
+
 @router.get("/compliance-issues", response_model=list[IssueOut])
-def list_issues(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    """List compliance issues."""
-    return service.list_issues(db)
+def list_issues(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """List compliance issues scoped to the caller's role."""
+    if user.role == UserRole.ADMIN:
+        return service.list_issues(db)
+    if user.role == UserRole.DEPT_HEAD:
+        return service.list_issues(db, dept_id=_dept_scope(db, user))
+    return service.list_issues(db, employee_id=_employee_id(user))
 
 
 @router.post("/compliance-issues", response_model=IssueOut, status_code=201)
-def create_issue(data: IssueCreate, db: Session = Depends(get_db), _=Depends(manage)):
-    """Raise a compliance issue (owner and due date required)."""
-    return service.create_issue(db, data)
+def create_issue(data: IssueCreate, db: Session = Depends(get_db), user: User = Depends(manage)):
+    """Raise a compliance issue (records the creator and assignee)."""
+    return service.create_issue(db, data, _employee_id(user))
 
 
 @router.post("/compliance-issues/{issue_id}/resolve", response_model=IssueOut)
-def resolve_issue(issue_id: int, db: Session = Depends(get_db), _=Depends(manage)):
-    """Mark a compliance issue as resolved."""
-    return service.resolve_issue(db, issue_id)
+def resolve_issue(issue_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Resolve an issue (managers, or the employee it is assigned to)."""
+    is_manager = user.role in (UserRole.ADMIN, UserRole.DEPT_HEAD)
+    return service.resolve_issue(db, issue_id, _employee_id(user), is_manager)
 
 
 @router.post("/compliance-issues/flag-overdue")
