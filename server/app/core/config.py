@@ -19,6 +19,18 @@ class Settings(BaseSettings):
     upload_dir: str = "uploads"
     max_upload_mb: int = 5
 
+    # Vercel Blob token (auto-injected on Vercel when a Blob store is attached).
+    # When set, proof files are stored in Blob instead of the local disk.
+    blob_read_write_token: str = ""
+
+    # Comma-separated list of allowed browser origins for CORS.
+    cors_origins: str = "http://localhost:5173"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """Parse the comma-separated CORS origins into a list."""
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
     mail_enabled: bool = False
     mail_username: str = ""
     mail_password: str = ""

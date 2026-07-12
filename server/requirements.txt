@@ -13,3 +13,4 @@ openpyxl==3.1.5
 fastapi-mail==1.4.2
 APScheduler==3.11.0
 email-validator==2.2.0
+vercel_blob==0.4.1
