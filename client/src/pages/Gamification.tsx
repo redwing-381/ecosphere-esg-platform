@@ -104,7 +104,7 @@ export default function Gamification() {
           <p className="text-sm font-medium text-slate-700">Challenges</p>
           {isManager && <Button onClick={() => setOpen(true)}>+ Add challenge</Button>}
         </div>
-        <Table head={["Challenge", "Difficulty", "XP", "Points", "Status", "Actions"]}>
+        <Table head={["Challenge", "Difficulty", "XP", "Points", "Status", "Actions"]} scroll>
           {challenges.data?.map((c) => (
             <tr key={c.id}>
               <Td className="font-medium">{c.title}</Td>
@@ -115,16 +115,24 @@ export default function Gamification() {
                 <Badge tone={statusTone[c.status] ?? "slate"}>{c.status.replaceAll("_", " ")}</Badge>
               </Td>
               <Td>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-2">
                   <Button variant="ghost" disabled={c.status !== "active"} onClick={() => join.mutate(c.id)}>
                     Join
                   </Button>
-                  {isManager &&
-                    NEXT[c.status]?.map((target) => (
-                      <Button key={target} variant="ghost" onClick={() => transition.mutate({ id: c.id, status: target })}>
-                        → {target.replaceAll("_", " ")}
-                      </Button>
-                    ))}
+                  {isManager && NEXT[c.status]?.length > 0 && (
+                    <Select
+                      className="w-40"
+                      value=""
+                      onChange={(e) => e.target.value && transition.mutate({ id: c.id, status: e.target.value })}
+                    >
+                      <option value="">Change status…</option>
+                      {NEXT[c.status].map((target) => (
+                        <option key={target} value={target}>
+                          Move to {target.replaceAll("_", " ")}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
                 </div>
               </Td>
             </tr>
