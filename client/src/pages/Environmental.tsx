@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth";
 import { useDepartmentNames, useDepartments } from "../lib/hooks";
 import { Button, Card, Field, Input, Modal, PageHeader, Select, Table, Td } from "../components/ui";
 
-type Factor = { id: number; name: string; unit: string };
+type Factor = { id: number; name: string; unit: string; activity_type: string };
 type Activity = { id: number; type: string; department_id: number; quantity: string; unit: string; activity_date: string };
 type DeptCarbon = { department_id: number; total_co2e: string };
 type Goal = { id: number; name: string; department_id: number | null; metric: string; target: string; unit: string; status: string };
@@ -22,10 +22,8 @@ export default function Environmental() {
   const [error, setError] = useState("");
   const [goalOpen, setGoalOpen] = useState(false);
   const [form, setForm] = useState({
-    type: "purchase",
     department_id: 1,
     quantity: 0,
-    unit: "kg",
     emission_factor_id: "",
     activity_date: new Date().toISOString().slice(0, 10),
   });
@@ -57,14 +55,20 @@ export default function Environmental() {
     queryFn: async () => (await api.get<Goal[]>("/environmental/goals")).data,
   });
 
+  const selectedFactor = factors.data?.find((f) => f.id === Number(form.emission_factor_id));
+
   const create = useMutation({
-    mutationFn: async () =>
-      api.post("/environmental/operational-activities", {
-        ...form,
+    mutationFn: async () => {
+      if (!selectedFactor) throw new Error("Select an emission factor");
+      return api.post("/environmental/operational-activities", {
+        type: selectedFactor.activity_type,
         department_id: Number(form.department_id),
         quantity: Number(form.quantity),
-        emission_factor_id: form.emission_factor_id ? Number(form.emission_factor_id) : null,
-      }),
+        unit: selectedFactor.unit,
+        emission_factor_id: selectedFactor.id,
+        activity_date: form.activity_date,
+      });
+    },
     onSuccess: () => {
       setError("");
       qc.invalidateQueries({ queryKey: ["activities"] });
@@ -98,48 +102,51 @@ export default function Environmental() {
             <p className="mb-3 text-sm font-medium text-slate-700">Log an operational activity</p>
             {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
             <div className="grid grid-cols-2 gap-3">
-              <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                <option value="purchase">Purchase</option>
-                <option value="manufacturing">Manufacturing</option>
-                <option value="expense">Expense</option>
-                <option value="fleet">Fleet</option>
-              </Select>
-              <Select
-                value={form.department_id}
-                onChange={(e) => setForm({ ...form, department_id: Number(e.target.value) })}
-              >
-                {(departments.data ?? []).map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </Select>
-              <Input
-                type="number"
-                placeholder="Quantity"
-                value={form.quantity}
-                onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })}
-              />
-              <Input placeholder="Unit" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
-              <Select
-                value={form.emission_factor_id}
-                onChange={(e) => setForm({ ...form, emission_factor_id: e.target.value })}
-              >
-                <option value="">Auto-match factor</option>
-                {factors.data?.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name} ({f.unit})
-                  </option>
-                ))}
-              </Select>
-              <Input
-                type="date"
-                value={form.activity_date}
-                onChange={(e) => setForm({ ...form, activity_date: e.target.value })}
-              />
+              <Field label="Department">
+                <Select
+                  value={form.department_id}
+                  onChange={(e) => setForm({ ...form, department_id: Number(e.target.value) })}
+                >
+                  {(departments.data ?? []).map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Emission factor">
+                <Select
+                  value={form.emission_factor_id}
+                  onChange={(e) => setForm({ ...form, emission_factor_id: e.target.value })}
+                >
+                  <option value="">Select a factor…</option>
+                  {factors.data?.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name} · {f.activity_type} ({f.unit})
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={`Quantity${selectedFactor ? ` (${selectedFactor.unit})` : ""}`}>
+                <Input
+                  type="number"
+                  value={form.quantity}
+                  onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })}
+                />
+              </Field>
+              <Field label="Date">
+                <Input
+                  type="date"
+                  value={form.activity_date}
+                  onChange={(e) => setForm({ ...form, activity_date: e.target.value })}
+                />
+              </Field>
             </div>
             <div className="mt-3">
-              <Button onClick={() => create.mutate()} disabled={create.isPending}>
+              <Button
+                onClick={() => create.mutate()}
+                disabled={create.isPending || !selectedFactor || Number(form.quantity) <= 0}
+              >
                 Add activity
               </Button>
             </div>
