@@ -159,3 +159,17 @@ def overall_score(db: Session) -> float | None:
     """Return the average of department totals that have data."""
     totals = [s.total for s in score_all(db) if s.total is not None]
     return round(sum(totals) / len(totals), 2) if totals else None
+
+
+def _round(value: float | None) -> float | None:
+    return None if value is None else round(value, 1)
+
+
+def overall_pillars(db: Session) -> dict:
+    """Org-wide E/S/G scores as the mean of department pillar scores."""
+    depts = score_all(db)
+    return {
+        "environmental": _round(_mean([s.environmental for s in depts])),
+        "social": _round(_mean([s.social for s in depts])),
+        "governance": _round(_mean([s.governance for s in depts])),
+    }

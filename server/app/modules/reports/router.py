@@ -1,4 +1,6 @@
-"""Report export endpoints (PDF and Excel)."""
+"""Report export endpoints (PDF, Excel and CSV)."""
+from datetime import date
+
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -9,24 +11,21 @@ from app.modules.reports import service
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
-_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-
-@router.get("/esg.pdf")
-def esg_pdf(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    """Download the ESG summary as a PDF."""
+@router.get("/generate")
+def generate(
+    module: str,
+    format: str = "pdf",
+    start: date | None = None,
+    end: date | None = None,
+    department_id: int | None = None,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """Generate a module report in the requested format with optional filters."""
+    content, filename = service.generate(db, module, format, start, end, department_id)
     return Response(
-        content=service.esg_pdf(db),
-        media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=ecosphere-esg.pdf"},
-    )
-
-
-@router.get("/esg.xlsx")
-def esg_excel(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    """Download the ESG summary as an Excel workbook."""
-    return Response(
-        content=service.esg_excel(db),
-        media_type=_XLSX,
-        headers={"Content-Disposition": "attachment; filename=ecosphere-esg.xlsx"},
+        content=content,
+        media_type=service.MEDIA_TYPES[format],
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
