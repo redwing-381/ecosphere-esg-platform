@@ -60,8 +60,12 @@ TODAY = date(2026, 7, 12)
 PASSWORD = "Password123"
 
 # name, department code, gender, title, role
+# A dedicated, non-participating administrator account (no employee record).
+ADMIN_EMAIL = "admin@ecosphere.com"
+ADMIN_NAME = "Platform Admin"
+
 PEOPLE = [
-    ("Priya Sharma", "HR", "Female", "Sustainability Lead", UserRole.ADMIN),
+    ("Priya Sharma", "HR", "Female", "Sustainability Lead", UserRole.EMPLOYEE),
     ("Arjun Mehta", "MFG", "Male", "Plant Manager", UserRole.DEPT_HEAD),
     ("Neha Verma", "LOG", "Female", "Fleet Coordinator", UserRole.DEPT_HEAD),
     ("Rohan Iyer", "OPS", "Male", "Operations Analyst", UserRole.DEPT_HEAD),
@@ -70,7 +74,7 @@ PEOPLE = [
     ("Ananya Nair", "LOG", "Female", "Dispatch Officer", UserRole.EMPLOYEE),
     ("Karan Singh", "LOG", "Male", "Driver Lead", UserRole.EMPLOYEE),
     ("Meera Joshi", "OPS", "Female", "Operations Coordinator", UserRole.EMPLOYEE),
-    ("Dev Patel", "HR", "Male", "HR Associate", UserRole.EMPLOYEE),
+    ("Dev Patel", "HR", "Male", "HR Associate", UserRole.DEPT_HEAD),
 ]
 
 DEPARTMENTS = [
@@ -202,14 +206,16 @@ def seed() -> None:  # noqa: C901 - a linear seed reads clearer in one place
         db.add(emp)
     db.flush()
 
-    heads = {"MFG": "Arjun Mehta", "LOG": "Neha Verma", "OPS": "Rohan Iyer", "HR": "Priya Sharma"}
+    heads = {"MFG": "Arjun Mehta", "LOG": "Neha Verma", "OPS": "Rohan Iyer", "HR": "Dev Patel"}
     for code, head_name in heads.items():
         depts[code].head_employee_id = people[head_name].id
 
     pw = hash_password(PASSWORD)
+    # Standalone administrator with no employee record (non-participating).
+    db.add(User(email=ADMIN_EMAIL, name=ADMIN_NAME, password_hash=pw, role=UserRole.ADMIN))
     for name, _c, _g, _t, role in PEOPLE:
         emp = people[name]
-        db.add(User(email=emp.email, password_hash=pw, role=role, employee_id=emp.id))
+        db.add(User(email=emp.email, name=emp.name, password_hash=pw, role=role, employee_id=emp.id))
 
     factors = {}
     for fname, atype, unit, value, scope in FACTORS:
@@ -221,10 +227,14 @@ def seed() -> None:  # noqa: C901 - a linear seed reads clearer in one place
         db.add(f)
     db.flush()
 
-    for atype, code, qty, unit, fname in ACTIVITIES:
+    # Spread activities across the last several months so the emissions trend is meaningful.
+    _base_month = 2026 * 12 + 6 - 1  # 0-based index for June 2026
+    for i, (atype, code, qty, unit, fname) in enumerate(ACTIVITIES):
+        idx = _base_month - (i % 9)
         activity = OperationalActivity(
             type=atype, department_id=depts[code].id, quantity=qty, unit=unit,
-            emission_factor_id=factors[fname].id, activity_date=date(2026, 6, 30),
+            emission_factor_id=factors[fname].id,
+            activity_date=date(idx // 12, idx % 12 + 1, 15),
         )
         db.add(activity)
         db.flush()
@@ -397,7 +407,8 @@ def main() -> None:
     reset()
     seed()
     print("Seed complete: 4 departments, 10 employees, carbon, CSR, governance and gamification data.")
-    print(f"Login with any employee, e.g. priya@ecosphere.com / {PASSWORD} (admin).")
+    print(f"Admin (non-participating): {ADMIN_EMAIL} / {PASSWORD}")
+    print(f"Dept head: arjun@ecosphere.com / {PASSWORD}  ·  Employee: priya@ecosphere.com / {PASSWORD}")
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ interface NavItem {
   to: string;
   label: string;
   roles?: Array<"admin" | "dept_head" | "employee">;
+  requiresEmployee?: boolean;
 }
 
 const NAV: NavItem[] = [
@@ -15,12 +16,12 @@ const NAV: NavItem[] = [
   { to: "/social", label: "Social" },
   { to: "/governance", label: "Governance" },
   { to: "/gamification", label: "Gamification" },
-  { to: "/rewards", label: "Rewards" },
+  { to: "/rewards", label: "Rewards", requiresEmployee: true },
   { to: "/simulator", label: "What-If Simulator" },
   { to: "/approvals", label: "Approvals", roles: ["admin", "dept_head"] },
   { to: "/reports", label: "Reports" },
   { to: "/admin", label: "Admin", roles: ["admin"] },
-  { to: "/profile", label: "My Profile" },
+  { to: "/profile", label: "My Profile", requiresEmployee: true },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
@@ -35,7 +36,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { data: profile } = useProfile();
   const navigate = useNavigate();
 
-  const items = NAV.filter((item) => !item.roles || (user && item.roles.includes(user.role)));
+  const participates = profile?.employee_id != null;
+  const items = NAV.filter(
+    (item) =>
+      (!item.roles || (user && item.roles.includes(user.role))) &&
+      (!item.requiresEmployee || participates)
+  );
 
   return (
     <div className="flex min-h-screen">
@@ -68,9 +74,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-medium text-brand-800">
                   {ROLE_LABEL[profile.role]}
                 </span>
-                <span className="text-slate-600">
-                  ⚡ {profile.xp_balance} XP · 🪙 {profile.points_balance}
-                </span>
+                {participates && (
+                  <span className="text-slate-600">
+                    ⚡ {profile.xp_balance} XP · 🪙 {profile.points_balance}
+                  </span>
+                )}
               </div>
             )}
             <NotificationBell />

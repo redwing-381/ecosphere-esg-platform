@@ -22,6 +22,7 @@ const isManagerRole = (r?: string) => r === "admin" || r === "dept_head";
 export default function Gamification() {
   const { user } = useAuth();
   const isManager = isManagerRole(user?.role);
+  const participates = user?.employee_id != null;
   const qc = useQueryClient();
   const [note, setNote] = useState("");
   const [open, setOpen] = useState(false);
@@ -116,9 +117,11 @@ export default function Gamification() {
               </Td>
               <Td>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" disabled={c.status !== "active"} onClick={() => join.mutate(c.id)}>
-                    Join
-                  </Button>
+                  {participates && (
+                    <Button variant="ghost" disabled={c.status !== "active"} onClick={() => join.mutate(c.id)}>
+                      Join
+                    </Button>
+                  )}
                   {isManager && NEXT[c.status]?.length > 0 && (
                     <Select
                       className="w-40"
