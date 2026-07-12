@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.deps.auth import get_current_user, require_roles
 from app.models.enums import UserRole
+from app.models.people import Employee, User
 from app.modules.analytics import service
 from app.modules.analytics.schemas import (
     ActivityItem,
@@ -48,6 +49,14 @@ def emissions_trend(db: Session = Depends(get_db), _=Depends(get_current_user)):
 
 
 @router.get("/recent-activity", response_model=list[ActivityItem])
-def recent_activity(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    """Return a recent organization activity feed."""
-    return service.recent_activity(db)
+def recent_activity(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Return a recent-activity feed scoped to the caller's role."""
+    if user.role == UserRole.ADMIN:
+        return service.recent_activity(db, org_wide=True)
+    if user.role == UserRole.DEPT_HEAD:
+        dept_id = None
+        if user.employee_id:
+            employee = db.get(Employee, user.employee_id)
+            dept_id = employee.department_id if employee else None
+        return service.recent_activity(db, dept_id=dept_id)
+    return service.recent_activity(db, employee_id=user.employee_id)

@@ -3,7 +3,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { apiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useDepartmentNames, useDepartments } from "../lib/hooks";
-import { Button, Card, Field, Input, Modal, PageHeader, Select, Table, Td } from "../components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Input,
+  Modal,
+  PageHeader,
+  SectionHeader,
+  Select,
+  Table,
+  Td,
+} from "../components/ui";
+import { Donut } from "../components/charts";
+import { Target } from "../components/icons";
 
 type Factor = { id: number; name: string; unit: string; activity_type: string };
 type Activity = { id: number; type: string; department_id: number; quantity: string; unit: string; activity_date: string };
@@ -92,14 +107,23 @@ export default function Environmental() {
     onError: (e) => setError(apiError(e)),
   });
 
+  const carbonSlices = (carbon.data ?? []).map((c) => ({
+    label: deptNames[c.department_id] ?? `Dept ${c.department_id}`,
+    value: Number(c.total_co2e),
+  }));
+  const totalCarbon = carbonSlices.reduce((s, d) => s + d.value, 0);
+
   return (
     <div className="space-y-6">
-      <PageHeader title="Environmental" subtitle="Track operational activities and their carbon footprint." />
+      <PageHeader
+        title="Environmental"
+        subtitle="Track operational activities and their carbon footprint."
+        actions={isManager && <Button onClick={() => setGoalOpen(true)}>+ Add goal</Button>}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {isManager && (
-          <Card className="lg:col-span-2">
-            <p className="mb-3 text-sm font-medium text-slate-700">Log an operational activity</p>
+          <Card title="Log an operational activity" className="lg:col-span-2">
             {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
             <div className="grid grid-cols-2 gap-3">
               <Field label="Department">
@@ -153,43 +177,48 @@ export default function Environmental() {
           </Card>
         )}
 
-        <Card className={isManager ? "" : "lg:col-span-3"}>
-          <p className="mb-3 text-sm font-medium text-slate-700">Carbon by department</p>
-          <Table head={["Department", "CO2e (kg)"]}>
-            {carbon.data?.map((c) => (
-              <tr key={c.department_id}>
-                <Td>{deptNames[c.department_id] ?? `Dept ${c.department_id}`}</Td>
-                <Td className="font-medium">{Number(c.total_co2e).toFixed(1)}</Td>
-              </tr>
-            ))}
-          </Table>
+        <Card
+          title="Carbon by department"
+          subtitle={totalCarbon > 0 ? `${totalCarbon.toFixed(0)} kg CO₂e total` : undefined}
+          className={isManager ? "" : "lg:col-span-3"}
+        >
+          <Donut data={carbonSlices} />
         </Card>
       </div>
 
       <div>
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-slate-700">Reduction goals</p>
-          {isManager && <Button onClick={() => setGoalOpen(true)}>+ Add goal</Button>}
-        </div>
-        <Table head={["Goal", "Department", "Target", "Unit", "Status"]}>
-          {goals.data?.map((g) => (
-            <tr key={g.id}>
-              <Td className="font-medium">{g.name}</Td>
-              <Td>{g.department_id ? deptNames[g.department_id] ?? `Dept ${g.department_id}` : "Org-wide"}</Td>
-              <Td>{Number(g.target).toFixed(0)}</Td>
-              <Td>{g.unit}</Td>
-              <Td>{g.status}</Td>
+        <SectionHeader title="Reduction goals" />
+        <Table head={["Goal", "Department", "Target", "Unit", "Status"]} scroll>
+          {(goals.data ?? []).length === 0 ? (
+            <tr>
+              <td colSpan={5}>
+                <EmptyState title="No reduction goals yet" hint="Add a goal to track progress." Icon={Target} />
+              </td>
             </tr>
-          ))}
+          ) : (
+            goals.data?.map((g) => (
+              <tr key={g.id} className="hover:bg-slate-50">
+                <Td className="font-medium">{g.name}</Td>
+                <Td>{g.department_id ? deptNames[g.department_id] ?? `Dept ${g.department_id}` : "Org-wide"}</Td>
+                <Td>{Number(g.target).toFixed(0)}</Td>
+                <Td>{g.unit}</Td>
+                <Td>
+                  <Badge tone={g.status === "achieved" ? "green" : g.status === "active" ? "sky" : "slate"}>
+                    {g.status}
+                  </Badge>
+                </Td>
+              </tr>
+            ))
+          )}
         </Table>
       </div>
 
       <div>
-        <p className="mb-3 text-sm font-medium text-slate-700">Recent activities</p>
-        <Table head={["Type", "Department", "Quantity", "Unit", "Date"]}>
+        <SectionHeader title="Recent activities" />
+        <Table head={["Type", "Department", "Quantity", "Unit", "Date"]} scroll>
           {activities.data?.map((a) => (
-            <tr key={a.id}>
-              <Td className="capitalize">{a.type}</Td>
+            <tr key={a.id} className="hover:bg-slate-50">
+              <Td className="capitalize font-medium">{a.type}</Td>
               <Td>{deptNames[a.department_id] ?? `Dept ${a.department_id}`}</Td>
               <Td>{Number(a.quantity).toFixed(2)}</Td>
               <Td>{a.unit}</Td>

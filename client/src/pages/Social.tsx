@@ -3,7 +3,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { apiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useEmployees, useProfile } from "../lib/hooks";
-import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Table, Td } from "../components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Input,
+  Modal,
+  PageHeader,
+  SectionHeader,
+  Select,
+  Table,
+  Td,
+} from "../components/ui";
+import { Donut, RankBar } from "../components/charts";
+import { CHART } from "../lib/theme";
+import { GraduationCap } from "../components/icons";
 
 type CSR = {
   id: number;
@@ -88,16 +104,39 @@ export default function Social() {
     onError: (e) => setNote(apiError(e)),
   });
 
+  const capped = (csr.data ?? []).filter((a) => a.capacity !== null);
+  const signupCats = capped.map((a) => a.name);
+  const signupVals = capped.map((a) => (a.capacity ?? 0) - (a.spots_left ?? 0));
+  const myDone = (myTrainings.data ?? []).filter((t) => t.completed).length;
+  const myPending = (myTrainings.data ?? []).length - myDone;
+
   return (
     <div className="space-y-6">
       <PageHeader title="Social" subtitle="Join CSR activities and complete assigned courses to earn XP and points." />
       {note && <p className="text-sm text-brand-700">{note}</p>}
 
+      <div className={`grid grid-cols-1 gap-6 ${isManager ? "" : "lg:grid-cols-2"}`}>
+        <Card title="CSR sign-ups" subtitle="Employees joined per activity">
+          <RankBar categories={signupCats} values={signupVals} color={CHART.social} height={220} valueLabel="Joined" />
+        </Card>
+        {!isManager && (
+          <Card title="My course progress" subtitle={`${myDone} of ${myDone + myPending} complete`}>
+            <Donut
+              data={[
+                { label: "Completed", value: myDone, color: CHART.env },
+                { label: "Pending", value: myPending, color: CHART.amber },
+              ]}
+              height={220}
+            />
+          </Card>
+        )}
+      </div>
+
       <div>
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-slate-700">CSR activities</p>
-          {isManager && <Button onClick={() => setCsrOpen(true)}>+ Add CSR activity</Button>}
-        </div>
+        <SectionHeader
+          title="CSR activities"
+          actions={isManager && <Button onClick={() => setCsrOpen(true)}>+ Add CSR activity</Button>}
+        />
         <Table head={["Activity", "Date", "XP", "Points", "Spots left", ""]} scroll>
           {csr.data?.map((a) => (
             <tr key={a.id}>
@@ -134,8 +173,9 @@ export default function Social() {
           <Table head={["Course", "Type", "Status", ""]} scroll>
             {myTrainings.data?.length === 0 ? (
               <tr>
-                <Td className="text-slate-400">No courses enabled for you yet.</Td>
-                <Td /> <Td /> <Td />
+                <td colSpan={4}>
+                  <EmptyState title="No courses enabled for you yet" hint="Your manager assigns courses." Icon={GraduationCap} />
+                </td>
               </tr>
             ) : (
               myTrainings.data?.map((t) => (

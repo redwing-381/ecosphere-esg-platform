@@ -2,7 +2,8 @@ import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { apiError } from "../lib/api";
-import { Button, Card, Input } from "../components/ui";
+import { Button, Card, Field, Input } from "../components/ui";
+import { Leaf } from "../components/icons";
 
 /** Email/password sign-in screen. */
 export default function Login() {
@@ -28,30 +29,35 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 to-slate-100 p-4">
-      <Card className="w-full max-w-sm">
-        <h1 className="mb-1 text-2xl font-bold text-brand-700">EcoSphere</h1>
-        <p className="mb-6 text-sm text-slate-500">Sign in to your ESG workspace</p>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">Email</label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 via-white to-slate-100 p-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-md">
+            <Leaf size={24} strokeWidth={2.2} />
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">Password</label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          {error && <p className="text-sm text-rose-600">{error}</p>}
-          <Button type="submit" className="w-full" disabled={busy}>
-            {busy ? "Signing in…" : "Sign in"}
-          </Button>
-        </form>
-      </Card>
+          <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900">EcoSphere</h1>
+          <p className="mt-1 text-sm text-slate-500">Sign in to your ESG workspace</p>
+        </div>
+        <Card>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <Field label="Email">
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@company.com" />
+            </Field>
+            <Field label="Password">
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" />
+            </Field>
+            {error && (
+              <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 ring-1 ring-inset ring-rose-600/20">
+                {error}
+              </p>
+            )}
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy ? "Signing in…" : "Sign in"}
+            </Button>
+          </form>
+        </Card>
+        <p className="mt-6 text-center text-xs text-slate-400">ESG Management Platform</p>
+      </div>
     </div>
   );
 }

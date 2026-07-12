@@ -3,7 +3,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { apiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useDepartments, useProfile } from "../lib/hooks";
-import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Table, Td } from "../components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Input,
+  Modal,
+  PageHeader,
+  SectionHeader,
+  Select,
+  Table,
+  Td,
+} from "../components/ui";
+import { Donut, RankBar } from "../components/charts";
+import { CHART } from "../lib/theme";
+import { CheckCircle2 } from "../components/icons";
 
 type Policy = { id: number; name: string; pillar: string; version: number; requires_ack: boolean; acknowledged: boolean };
 type Audit = { id: number; name: string; department_id: number | null; audit_date: string; passed: boolean | null };
@@ -117,13 +133,44 @@ export default function Governance() {
   const canResolve = (i: Issue) => isManager || profile?.employee_id === i.owner_id;
   const canModify = (i: Issue) => isManager || profile?.employee_id === i.created_by;
 
+  const auditData = audits.data ?? [];
+  const auditSlices = [
+    { label: "Passed", value: auditData.filter((a) => a.passed === true).length, color: CHART.env },
+    { label: "Failed", value: auditData.filter((a) => a.passed === false).length, color: CHART.rose },
+    { label: "Pending", value: auditData.filter((a) => a.passed === null).length, color: CHART.slate },
+  ];
+  const openIssueData = (issues.data ?? []).filter((i) => i.status !== "resolved");
+  const sevOrder = ["critical", "high", "medium", "low"];
+  const sevColor: Record<string, string> = {
+    critical: CHART.rose,
+    high: "#f97316",
+    medium: CHART.amber,
+    low: CHART.slate,
+  };
+  const sevCounts = sevOrder.map((s) => openIssueData.filter((i) => i.severity === s).length);
+
   return (
     <div className="space-y-6">
       <PageHeader title="Governance" subtitle="Acknowledge policies and track audits and compliance issues." />
       {note && <p className="text-sm text-brand-700">{note}</p>}
 
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card title="Audit results" subtitle={`${auditData.length} audits`}>
+          <Donut data={auditSlices} height={220} />
+        </Card>
+        <Card title="Open issues by severity" subtitle={`${openIssueData.length} open`}>
+          <RankBar
+            categories={sevOrder.map((s) => s[0].toUpperCase() + s.slice(1))}
+            values={sevCounts}
+            colors={sevOrder.map((s) => sevColor[s])}
+            height={220}
+            valueLabel="Open issues"
+          />
+        </Card>
+      </div>
+
       <div>
-        <p className="mb-3 text-sm font-medium text-slate-700">Policies</p>
+        <SectionHeader title="Policies" />
         <Table head={["Policy", "Pillar", "Version", ""]} scroll>
           {policies.data?.map((p) => (
             <tr key={p.id}>
@@ -192,8 +239,9 @@ export default function Governance() {
         <Table head={["Issue", "Severity", "Assigned to", "Raised by", "Due", ""]} scroll>
           {issues.data?.length === 0 ? (
             <tr>
-              <Td className="text-slate-400">No compliance issues.</Td>
-              <Td /> <Td /> <Td /> <Td /> <Td />
+              <td colSpan={6}>
+                <EmptyState title="No compliance issues" hint="You're fully compliant." Icon={CheckCircle2} />
+              </td>
             </tr>
           ) : (
             issues.data?.map((i) => (

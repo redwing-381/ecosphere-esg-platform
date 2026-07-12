@@ -2,29 +2,45 @@ import { useState } from "react";
 import api, { apiError } from "../lib/api";
 import { useDepartments } from "../lib/hooks";
 import { Button, Card, Field, PageHeader, Select, Input } from "../components/ui";
+import { CHART } from "../lib/theme";
+import { HeartHandshake, Leaf, Scale, Sparkles, type LucideIcon } from "../components/icons";
 
-const REPORTS = [
+const REPORTS: {
+  module: string;
+  title: string;
+  description: string;
+  Icon: LucideIcon;
+  color: string;
+}[] = [
   {
     module: "environmental",
     title: "Environmental Report",
     description: "Emissions, goals and per-department carbon breakdown.",
+    Icon: Leaf,
+    color: CHART.env,
   },
   {
     module: "social",
     title: "Social Report",
     description: "Headcount, CSR participation and training completion.",
+    Icon: HeartHandshake,
+    color: CHART.social,
   },
   {
     module: "governance",
     title: "Governance Report",
     description: "Audits, pass rates and compliance risk summary.",
+    Icon: Scale,
+    color: CHART.gov,
   },
   {
     module: "esg",
     title: "ESG Summary",
     description: "Executive overview: all scores and department comparison.",
+    Icon: Sparkles,
+    color: CHART.esg,
   },
-] as const;
+];
 
 /** Reports module: four ready-made reports plus a custom report builder. */
 export default function Reports() {
@@ -62,18 +78,23 @@ export default function Reports() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {REPORTS.map((r) => (
-          <Card key={r.module}>
-            <p className="font-medium text-slate-800">{r.title}</p>
-            <p className="mb-4 mt-1 text-sm text-slate-500">{r.description}</p>
-            <Button disabled={busy !== ""} onClick={() => download(r.module, "pdf", r.module)}>
+          <Card key={r.module} className="flex flex-col">
+            <div
+              className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl"
+              style={{ backgroundColor: `${r.color}1a`, color: r.color }}
+            >
+              <r.Icon size={22} />
+            </div>
+            <p className="font-semibold text-slate-800">{r.title}</p>
+            <p className="mb-4 mt-1 flex-1 text-sm text-slate-500">{r.description}</p>
+            <Button className="w-full" disabled={busy !== ""} onClick={() => download(r.module, "pdf", r.module)}>
               {busy === r.module ? "Generating…" : "Generate PDF"}
             </Button>
           </Card>
         ))}
       </div>
 
-      <Card>
-        <p className="mb-4 text-sm font-medium text-slate-700">Custom report builder</p>
+      <Card title="Custom report builder" subtitle="Filter by module, department and date range.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Module">
             <Select value={filters.module} onChange={(e) => setFilters({ ...filters, module: e.target.value })}>
