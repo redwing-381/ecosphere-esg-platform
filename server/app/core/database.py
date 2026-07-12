@@ -1,14 +1,22 @@
 """Database engine, session factory and declarative base."""
+import os
 from collections.abc import Generator
 from datetime import datetime
 
-from sqlalchemy import DateTime, func
+from sqlalchemy import DateTime, create_engine, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
-from sqlalchemy import create_engine
 
-engine = create_engine(settings.database_url, pool_pre_ping=True, future=True)
+# On serverless (Vercel) each invocation is short-lived, so we don't keep a
+# connection pool open. Pair this with a pooled Postgres endpoint (e.g. Neon
+# pooler) to avoid exhausting database connections.
+_engine_kwargs: dict = {"pool_pre_ping": True, "future": True}
+if os.getenv("VERCEL"):
+    _engine_kwargs["poolclass"] = NullPool
+
+engine = create_engine(settings.database_url, **_engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
