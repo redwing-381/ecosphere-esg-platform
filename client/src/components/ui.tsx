@@ -150,6 +150,40 @@ export const Textarea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttrib
   }
 );
 
+/** Sliding on/off switch with an inline label. */
+export function Toggle({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="flex items-center gap-3 text-left text-sm text-slate-600"
+    >
+      <span
+        className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition ${
+          checked ? "bg-brand-600" : "bg-slate-300"
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
+            checked ? "translate-x-4" : "translate-x-0.5"
+          }`}
+        />
+      </span>
+      {label}
+    </button>
+  );
+}
+
 /** Labelled form field wrapper. */
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

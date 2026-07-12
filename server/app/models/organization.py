@@ -25,3 +25,4 @@ class Organization(Base):
     auto_carbon: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     evidence_required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     badge_auto_award: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    email_alerts: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
