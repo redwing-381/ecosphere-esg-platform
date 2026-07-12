@@ -1,4 +1,6 @@
-# Deploying EcoSphere to Vercel (free tier)
+# EcoSphere — ESG Management Platform
+
+## Deploying EcoSphere to Vercel (free tier)
 
 EcoSphere runs fully on Vercel using **two projects from the same repo** plus two
 free managed services:
