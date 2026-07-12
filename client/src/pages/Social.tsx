@@ -5,7 +5,16 @@ import { useAuth } from "../lib/auth";
 import { useEmployees, useProfile } from "../lib/hooks";
 import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Table, Td } from "../components/ui";
 
-type CSR = { id: number; name: string; activity_date: string; xp_reward: number; points_reward: number; capacity: number | null };
+type CSR = {
+  id: number;
+  name: string;
+  activity_date: string;
+  xp_reward: number;
+  points_reward: number;
+  capacity: number | null;
+  spots_left: number | null;
+  my_status: "pending" | "approved" | "rejected" | null;
+};
 type Training = { id: number; name: string; description: string | null; mandatory: boolean };
 type MyTraining = { id: number; name: string; description: string | null; mandatory: boolean; completed: boolean };
 type Category = { id: number; name: string };
@@ -16,6 +25,7 @@ const isManagerRole = (r?: string) => r === "admin" || r === "dept_head";
 export default function Social() {
   const { user } = useAuth();
   const isManager = isManagerRole(user?.role);
+  const participates = user?.employee_id != null;
   const qc = useQueryClient();
   const [note, setNote] = useState("");
   const [csrOpen, setCsrOpen] = useState(false);
@@ -47,7 +57,10 @@ export default function Social() {
 
   const join = useMutation({
     mutationFn: async (id: number) => api.post(`/social/csr-activities/${id}/join`),
-    onSuccess: () => setNote("Joined activity — upload proof from My Profile to earn rewards."),
+    onSuccess: () => {
+      setNote("Joined activity — upload proof from My Profile to earn rewards.");
+      qc.invalidateQueries({ queryKey: ["csr"] });
+    },
     onError: (e) => setNote(apiError(e)),
   });
   const complete = useMutation({
@@ -85,19 +98,15 @@ export default function Social() {
           <p className="text-sm font-medium text-slate-700">CSR activities</p>
           {isManager && <Button onClick={() => setCsrOpen(true)}>+ Add CSR activity</Button>}
         </div>
-        <Table head={["Activity", "Date", "XP", "Points", "Capacity", ""]} scroll>
+        <Table head={["Activity", "Date", "XP", "Points", "Spots left", ""]} scroll>
           {csr.data?.map((a) => (
             <tr key={a.id}>
               <Td className="font-medium">{a.name}</Td>
               <Td>{a.activity_date}</Td>
               <Td>{a.xp_reward}</Td>
               <Td>{a.points_reward}</Td>
-              <Td>{a.capacity ?? "—"}</Td>
-              <Td>
-                <Button variant="ghost" onClick={() => join.mutate(a.id)}>
-                  Join
-                </Button>
-              </Td>
+              <Td>{a.capacity === null ? "Unlimited" : `${a.spots_left ?? 0} / ${a.capacity}`}</Td>
+              <Td>{participates && <CsrAction activity={a} onJoin={() => join.mutate(a.id)} pending={join.isPending} />}</Td>
             </tr>
           ))}
         </Table>
@@ -194,6 +203,20 @@ export default function Social() {
         />
       )}
     </div>
+  );
+}
+
+/** Renders the CSR join control reflecting the employee's current state. */
+function CsrAction({ activity, onJoin, pending }: { activity: CSR; onJoin: () => void; pending: boolean }) {
+  if (activity.my_status === "approved") return <Badge tone="green">Approved ✓</Badge>;
+  if (activity.my_status === "pending") return <Badge tone="amber">Joined · awaiting approval</Badge>;
+  if (activity.my_status === "rejected") return <Badge tone="rose">Not approved</Badge>;
+  if (activity.capacity !== null && (activity.spots_left ?? 0) <= 0)
+    return <Badge tone="slate">Full</Badge>;
+  return (
+    <Button variant="ghost" onClick={onJoin} disabled={pending}>
+      Join
+    </Button>
   );
 }
 

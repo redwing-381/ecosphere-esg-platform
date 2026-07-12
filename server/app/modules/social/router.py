@@ -58,9 +58,9 @@ def create_category(data: CategoryCreate, db: Session = Depends(get_db), _=Depen
 
 
 @router.get("/csr-activities", response_model=list[CSRActivityOut])
-def list_csr(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    """List CSR activities."""
-    return service.list_csr(db)
+def list_csr(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """List CSR activities with the caller's join status."""
+    return service.list_csr(db, employee_id=user.employee_id)
 
 
 @router.post("/csr-activities", response_model=CSRActivityOut, status_code=201)
@@ -105,7 +105,7 @@ def approve(
 ):
     """Approve a participation and award XP/points."""
     return service.approve_participation(
-        db, participation_id, _employee_id(user), _review_scope(db, user)
+        db, participation_id, user.employee_id, _review_scope(db, user)
     )
 
 
@@ -115,7 +115,7 @@ def reject(
 ):
     """Reject a participation."""
     return service.reject_participation(
-        db, participation_id, _employee_id(user), _review_scope(db, user)
+        db, participation_id, user.employee_id, _review_scope(db, user)
     )
 
 
@@ -171,7 +171,7 @@ def assign_training(
         invalid = [e for e in data.employee_ids if e not in allowed]
         if invalid:
             raise ValidationError("You can only assign courses to your own department")
-    return {"assigned": service.assign_training(db, training_id, data.employee_ids, _employee_id(user))}
+    return {"assigned": service.assign_training(db, training_id, data.employee_ids, user.employee_id)}
 
 
 @router.post("/trainings/{training_id}/complete", status_code=201)

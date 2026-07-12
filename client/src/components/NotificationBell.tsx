@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../lib/api";
@@ -22,10 +23,18 @@ export default function NotificationBell() {
   });
   const unread = notifications.filter((n) => !n.is_read).length;
 
-  const markRead = useMutation({
-    mutationFn: async (id: number) => api.post(`/notifications/${id}/read`),
+  const markAllRead = useMutation({
+    mutationFn: async () => api.post("/notifications/read-all"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
+
+  // Opening the tray clears the unread badge by marking everything read.
+  useEffect(() => {
+    if (open && unread > 0 && !markAllRead.isPending) {
+      markAllRead.mutate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   return (
     <div className="relative">
@@ -52,16 +61,14 @@ export default function NotificationBell() {
               <p className="px-4 py-6 text-center text-sm text-slate-400">You're all caught up.</p>
             ) : (
               notifications.slice(0, 15).map((n) => (
-                <button
+                <div
                   key={n.id}
-                  disabled={n.is_read}
-                  onClick={() => markRead.mutate(n.id)}
-                  className={`block w-full border-b border-slate-50 px-4 py-2.5 text-left text-sm last:border-0 ${
-                    n.is_read ? "text-slate-400" : "bg-brand-50/40 text-slate-700 hover:bg-brand-50"
+                  className={`border-b border-slate-50 px-4 py-2.5 text-sm last:border-0 ${
+                    n.is_read ? "text-slate-500" : "bg-brand-50/40 text-slate-700"
                   }`}
                 >
                   {n.message}
-                </button>
+                </div>
               ))
             )}
           </div>
