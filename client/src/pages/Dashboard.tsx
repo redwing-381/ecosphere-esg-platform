@@ -10,7 +10,9 @@ import {
   YAxis,
 } from "recharts";
 import api from "../lib/api";
-import { Card, PageHeader, Stat } from "../components/ui";
+import { useAuth } from "../lib/auth";
+import { useDepartmentNames } from "../lib/hooks";
+import { Badge, Card, PageHeader, Stat, Table, Td } from "../components/ui";
 
 type Dashboard = {
   overall_score: number | null;
@@ -29,10 +31,23 @@ type DeptScore = {
 
 type Scores = { overall: number | null; departments: DeptScore[] };
 
+type Issue = {
+  id: number;
+  description: string;
+  severity: string;
+  owner_name: string | null;
+  due_date: string;
+  status: string;
+  is_overdue: boolean;
+};
+
 const BAND = (v: number) => (v >= 70 ? "#16a34a" : v >= 40 ? "#d97706" : "#e11d48");
+const sevTone: Record<string, string> = { critical: "rose", high: "rose", medium: "amber", low: "slate" };
 
 /** Landing dashboard summarising live ESG performance. */
 export default function Dashboard() {
+  const { user } = useAuth();
+  const deptNames = useDepartmentNames();
   const { data: summary } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => (await api.get<Dashboard>("/analytics/dashboard")).data,
@@ -41,11 +56,23 @@ export default function Dashboard() {
     queryKey: ["scores"],
     queryFn: async () => (await api.get<Scores>("/analytics/scores")).data,
   });
+  const { data: issues } = useQuery({
+    queryKey: ["issues"],
+    queryFn: async () => (await api.get<Issue[]>("/governance/compliance-issues")).data,
+  });
+
+  const openIssues = (issues ?? []).filter((i) => i.status !== "resolved");
+  const issuesTitle =
+    user?.role === "employee"
+      ? "My open compliance issues"
+      : user?.role === "dept_head"
+        ? "Open compliance issues in my department"
+        : "Open compliance issues (all departments)";
 
   const chart =
     scores?.departments
       .filter((d) => d.total !== null)
-      .map((d) => ({ name: `Dept ${d.department_id}`, total: d.total as number })) ?? [];
+      .map((d) => ({ name: deptNames[d.department_id] ?? `Dept ${d.department_id}`, total: d.total as number })) ?? [];
 
   return (
     <div className="space-y-6">
@@ -80,6 +107,36 @@ export default function Dashboard() {
           </ResponsiveContainer>
         )}
       </Card>
+
+      <div>
+        <p className="mb-3 text-sm font-medium text-slate-700">{issuesTitle}</p>
+        <Table head={["Issue", "Severity", "Assigned to", "Due"]} scroll>
+          {openIssues.length === 0 ? (
+            <tr>
+              <Td className="text-slate-400">Nothing open — you're all clear.</Td>
+              <Td /> <Td /> <Td />
+            </tr>
+          ) : (
+            openIssues.map((i) => (
+              <tr key={i.id}>
+                <Td className="font-medium">
+                  {i.description}
+                  {i.is_overdue && (
+                    <span className="ml-2">
+                      <Badge tone="rose">Overdue</Badge>
+                    </span>
+                  )}
+                </Td>
+                <Td>
+                  <Badge tone={sevTone[i.severity] ?? "slate"}>{i.severity}</Badge>
+                </Td>
+                <Td>{i.owner_name ?? "—"}</Td>
+                <Td>{i.due_date}</Td>
+              </tr>
+            ))
+          )}
+        </Table>
+      </div>
     </div>
   );
 }
