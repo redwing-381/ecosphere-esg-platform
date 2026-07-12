@@ -54,3 +54,74 @@ export function Badge({ tone = "slate", children }: { tone?: string; children: R
     </span>
   );
 }
+
+export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
+  function Select({ className = "", children, ...props }, ref) {
+    return (
+      <select
+        ref={ref}
+        className={`w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${className}`}
+        {...props}
+      >
+        {children}
+      </select>
+    );
+  }
+);
+
+/** Page title with an optional description and right-aligned actions. */
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-800">{title}</h1>
+        {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+      </div>
+      {actions && <div className="flex gap-2">{actions}</div>}
+    </div>
+  );
+}
+
+/** Headline metric card. */
+export function Stat({ label, value, tone = "slate" }: { label: string; value: React.ReactNode; tone?: string }) {
+  const color = tone === "green" ? "text-brand-700" : "text-slate-800";
+  return (
+    <Card>
+      <p className="text-sm text-slate-500">{label}</p>
+      <p className={`mt-2 text-3xl font-bold ${color}`}>{value}</p>
+    </Card>
+  );
+}
+
+/** Simple table wrapper that renders a header row and body rows. */
+export function Table({ head, children }: { head: string[]; children: React.ReactNode }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <table className="w-full text-left text-sm">
+        <thead className="bg-slate-50 text-slate-500">
+          <tr>
+            {head.map((h) => (
+              <th key={h} className="px-4 py-2.5 font-medium">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Standard body cell. */
+export function Td({ children, className = "" }: { children?: React.ReactNode; className?: string }) {
+  return <td className={`px-4 py-2.5 text-slate-700 ${className}`}>{children}</td>;
+}
