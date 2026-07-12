@@ -1,5 +1,5 @@
 """Schemas for analytics, scores and dashboard."""
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
@@ -24,6 +24,20 @@ class TrendPoint(BaseModel):
 
 class DashboardOut(BaseModel):
     overall_score: float | None
+    env_score: float | None
+    social_score: float | None
+    gov_score: float | None
     total_co2e: float
     open_issues: int
     employee_count: int
+
+
+class MonthlyEmission(BaseModel):
+    month: str
+    co2e: float
+
+
+class ActivityItem(BaseModel):
+    message: str
+    type: str
+    created_at: datetime

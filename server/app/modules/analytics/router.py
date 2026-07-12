@@ -7,7 +7,9 @@ from app.deps.auth import get_current_user, require_roles
 from app.models.enums import UserRole
 from app.modules.analytics import service
 from app.modules.analytics.schemas import (
+    ActivityItem,
     DashboardOut,
+    MonthlyEmission,
     ScoresResponse,
     TrendPoint,
 )
@@ -35,5 +37,17 @@ def trends(department_id: int, db: Session = Depends(get_db), _=Depends(get_curr
 
 @router.get("/dashboard", response_model=DashboardOut)
 def dashboard(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    """Return headline dashboard metrics."""
+    """Return headline dashboard metrics including the E/S/G/ESG split."""
     return service.dashboard(db)
+
+
+@router.get("/emissions-trend", response_model=list[MonthlyEmission])
+def emissions_trend(db: Session = Depends(get_db), _=Depends(get_current_user)):
+    """Return monthly CO2e totals for the last 12 months."""
+    return service.emissions_trend(db)
+
+
+@router.get("/recent-activity", response_model=list[ActivityItem])
+def recent_activity(db: Session = Depends(get_db), _=Depends(get_current_user)):
+    """Return a recent organization activity feed."""
+    return service.recent_activity(db)

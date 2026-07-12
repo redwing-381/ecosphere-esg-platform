@@ -8,6 +8,7 @@ from app.engines import scoring
 from app.models.enums import IssueStatus, Status
 from app.models.environmental import CarbonTransaction
 from app.models.governance import ComplianceIssue
+from app.models.notification import Notification
 from app.models.people import Employee
 from app.models.scoring import DepartmentScore
 
@@ -68,9 +69,39 @@ def dashboard(db: Session) -> dict:
     employee_count = db.scalar(
         select(func.count()).select_from(Employee).where(Employee.status == Status.ACTIVE)
     )
+    pillars = scoring.overall_pillars(db)
     return {
         "overall_score": scoring.overall_score(db),
+        "env_score": pillars["environmental"],
+        "social_score": pillars["social"],
+        "gov_score": pillars["governance"],
         "total_co2e": total_co2e,
         "open_issues": open_issues,
         "employee_count": employee_count,
     }
+
+
+def emissions_trend(db: Session, months: int = 12) -> list[dict]:
+    """Return total CO2e grouped by calendar month for the last N months."""
+    today = date.today()
+    start_index = (today.year * 12 + today.month - 1) - (months - 1)
+    start = date(start_index // 12, start_index % 12 + 1, 1)
+    month_col = func.date_trunc("month", CarbonTransaction.date)
+    rows = db.execute(
+        select(month_col.label("m"), func.coalesce(func.sum(CarbonTransaction.co2e), 0))
+        .where(CarbonTransaction.date >= start)
+        .group_by(month_col)
+        .order_by(month_col)
+    ).all()
+    return [{"month": m.strftime("%b %Y"), "co2e": round(float(total), 1)} for m, total in rows]
+
+
+def recent_activity(db: Session, limit: int = 8) -> list[dict]:
+    """Return the most recent notifications as an organization activity feed."""
+    rows = db.scalars(
+        select(Notification).order_by(Notification.created_at.desc()).limit(limit)
+    )
+    return [
+        {"message": n.message, "type": n.type.value, "created_at": n.created_at}
+        for n in rows
+    ]
