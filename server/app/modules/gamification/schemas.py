@@ -48,6 +48,21 @@ class ChallengeParticipationOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ChallengeParticipationDetail(BaseModel):
+    """Challenge participation enriched with names for review queues."""
+
+    id: int
+    challenge_id: int
+    challenge_title: str
+    employee_id: int
+    employee_name: str
+    progress: int
+    proof_url: str | None
+    approval_status: ApprovalStatus
+    xp_awarded: int
+    points_awarded: int
+
+
 class BadgeCreate(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     description: str | None = None

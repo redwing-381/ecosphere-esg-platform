@@ -6,14 +6,15 @@ from app.core.database import get_db
 from app.core.exceptions import ValidationError
 from app.core.uploads import save_proof
 from app.deps.auth import get_current_user, require_roles
-from app.models.enums import UserRole
-from app.models.people import User
+from app.models.enums import ApprovalStatus, UserRole
+from app.models.people import Employee, User
 from app.modules.gamification import service
 from app.modules.gamification.schemas import (
     BadgeCreate,
     BadgeOut,
     ChallengeCreate,
     ChallengeOut,
+    ChallengeParticipationDetail,
     ChallengeParticipationOut,
     LeaderboardRow,
     TransitionRequest,
@@ -28,6 +29,14 @@ def _employee_id(user: User) -> int:
     if user.employee_id is None:
         raise ValidationError("Your account is not linked to an employee")
     return user.employee_id
+
+
+def _review_scope(db: Session, user: User) -> int | None:
+    """Return the department a reviewer is limited to (None for admins)."""
+    if user.role == UserRole.DEPT_HEAD and user.employee_id:
+        employee = db.get(Employee, user.employee_id)
+        return employee.department_id if employee else None
+    return None
 
 
 @router.get("/challenges", response_model=list[ChallengeOut])
@@ -56,6 +65,19 @@ def join(challenge_id: int, db: Session = Depends(get_db), user: User = Depends(
     return service.join_challenge(db, challenge_id, _employee_id(user))
 
 
+@router.get("/participations", response_model=list[ChallengeParticipationDetail])
+def list_participations(
+    status: ApprovalStatus | None = None,
+    mine: bool = False,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """List challenge participations scoped to the caller's role."""
+    if mine or user.role == UserRole.EMPLOYEE:
+        return service.list_participations(db, employee_id=_employee_id(user), status=status)
+    return service.list_participations(db, dept_id=_review_scope(db, user), status=status)
+
+
 @router.post("/participations/{participation_id}/proof", response_model=ChallengeParticipationOut)
 def submit_proof(
     participation_id: int,
@@ -70,13 +92,17 @@ def submit_proof(
 @router.post("/participations/{participation_id}/approve", response_model=ChallengeParticipationOut)
 def approve(participation_id: int, db: Session = Depends(get_db), user: User = Depends(manage)):
     """Approve a challenge submission and award XP/points."""
-    return service.approve_challenge(db, participation_id, _employee_id(user))
+    return service.approve_challenge(
+        db, participation_id, _employee_id(user), _review_scope(db, user)
+    )
 
 
 @router.post("/participations/{participation_id}/reject", response_model=ChallengeParticipationOut)
 def reject(participation_id: int, db: Session = Depends(get_db), user: User = Depends(manage)):
     """Reject a challenge submission."""
-    return service.reject_challenge(db, participation_id, _employee_id(user))
+    return service.reject_challenge(
+        db, participation_id, _employee_id(user), _review_scope(db, user)
+    )
 
 
 @router.get("/badges", response_model=list[BadgeOut])

@@ -15,7 +15,7 @@ def save_proof(file: UploadFile) -> str:
     """Validate type/size and store a proof file, returning its relative path."""
     ext = Path(file.filename or "").suffix.lower()
     if file.content_type not in ALLOWED_TYPES or ext not in ALLOWED_EXTS:
-        raise ValidationError("Proof must be a JP, PNG, WEBP or PDF file")
+        raise ValidationError("Proof must be a JPG, PNG, WEBP or PDF file")
 
     data = file.file.read()
     if len(data) > settings.max_upload_mb * 1024 * 1024:
