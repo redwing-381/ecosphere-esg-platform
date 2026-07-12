@@ -10,27 +10,32 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.models.enums import UserRole
 from app.models.people import Employee, User
 from app.modules.auth.schemas import RegisterRequest
 
 
 def register(db: Session, data: RegisterRequest) -> User:
-    """Create an employee and its linked user account."""
+    """Create a user account; admins are non-participating (no employee record)."""
     exists = db.scalar(select(User).where(User.email == data.email))
     if exists:
         raise ConflictError("An account with this email already exists")
 
-    employee = Employee(
-        name=data.name, email=data.email, department_id=data.department_id
-    )
-    db.add(employee)
-    db.flush()
+    employee_id = None
+    if data.role != UserRole.ADMIN:
+        employee = Employee(
+            name=data.name, email=data.email, department_id=data.department_id
+        )
+        db.add(employee)
+        db.flush()
+        employee_id = employee.id
 
     user = User(
         email=data.email,
+        name=data.name,
         password_hash=hash_password(data.password),
         role=data.role,
-        employee_id=employee.id,
+        employee_id=employee_id,
     )
     db.add(user)
     db.commit()

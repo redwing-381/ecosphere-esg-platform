@@ -49,10 +49,12 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    name: Mapped[str | None] = mapped_column(String(120))
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole), default=UserRole.EMPLOYEE, nullable=False
     )
+    # Null for non-participating accounts such as a platform administrator.
     employee_id: Mapped[int | None] = mapped_column(
         ForeignKey("employee.id"), unique=True
     )

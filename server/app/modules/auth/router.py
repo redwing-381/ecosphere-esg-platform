@@ -21,7 +21,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=UserOut, status_code=201)
 def register(data: RegisterRequest, db: Session = Depends(get_db)) -> User:
-    """Register a new account and its linked employee."""
+    """Register a new account (admins are non-participating, without an employee)."""
     return service.register(db, data)
 
 
@@ -60,7 +60,7 @@ def profile(db: Session = Depends(get_db), user: User = Depends(get_current_user
         email=user.email,
         role=user.role,
         employee_id=user.employee_id,
-        name=employee.name if employee else None,
+        name=employee.name if employee else user.name,
         department_id=employee.department_id if employee else None,
         department_name=department.name if department else None,
         job_title=employee.job_title if employee else None,

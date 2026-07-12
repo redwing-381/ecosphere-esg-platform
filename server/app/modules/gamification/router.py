@@ -93,7 +93,7 @@ def submit_proof(
 def approve(participation_id: int, db: Session = Depends(get_db), user: User = Depends(manage)):
     """Approve a challenge submission and award XP/points."""
     return service.approve_challenge(
-        db, participation_id, _employee_id(user), _review_scope(db, user)
+        db, participation_id, user.employee_id, _review_scope(db, user)
     )
 
 
@@ -101,7 +101,7 @@ def approve(participation_id: int, db: Session = Depends(get_db), user: User = D
 def reject(participation_id: int, db: Session = Depends(get_db), user: User = Depends(manage)):
     """Reject a challenge submission."""
     return service.reject_challenge(
-        db, participation_id, _employee_id(user), _review_scope(db, user)
+        db, participation_id, user.employee_id, _review_scope(db, user)
     )
 
 
