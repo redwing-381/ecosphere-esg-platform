@@ -68,6 +68,7 @@ class ComplianceIssue(Base):
     )
     description: Mapped[str] = mapped_column(Text, nullable=False)
     owner_id: Mapped[int] = mapped_column(ForeignKey("employee.id"), nullable=False)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("employee.id"))
     due_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[IssueStatus] = mapped_column(
         Enum(IssueStatus), default=IssueStatus.OPEN, nullable=False
@@ -75,3 +76,4 @@ class ComplianceIssue(Base):
     is_overdue: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     owner = relationship("Employee", foreign_keys=[owner_id])
+    creator = relationship("Employee", foreign_keys=[created_by])

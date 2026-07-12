@@ -37,6 +37,11 @@ class AuditCreate(BaseModel):
     passed: bool | None = None
 
 
+class AuditUpdate(BaseModel):
+    passed: bool | None = None
+    findings: str | None = None
+
+
 class AuditOut(BaseModel):
     id: int
     name: str
@@ -56,11 +61,17 @@ class IssueCreate(BaseModel):
 
 
 class IssueOut(BaseModel):
+    """A compliance issue with both its creator and current assignee."""
+
     id: int
     audit_id: int | None
     severity: IssueSeverity
     description: str
     owner_id: int
+    owner_name: str | None = None
+    created_by: int | None = None
+    created_by_name: str | None = None
+    department_id: int | None = None
     due_date: date
     status: IssueStatus
     is_overdue: bool

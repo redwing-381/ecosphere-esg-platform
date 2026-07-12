@@ -49,7 +49,12 @@ from app.models.master import (
 from app.models.notification import Notification, NotificationSetting
 from app.models.organization import Organization
 from app.models.people import Employee, User
-from app.models.social import CSRActivity, EmployeeParticipation, TrainingCompletion
+from app.models.social import (
+    CSRActivity,
+    EmployeeParticipation,
+    TrainingAssignment,
+    TrainingCompletion,
+)
 
 TODAY = date(2026, 7, 12)
 PASSWORD = "Password123"
@@ -238,6 +243,12 @@ def seed() -> None:  # noqa: C901 - a linear seed reads clearer in one place
         trainings.append(t)
         db.add(t)
     db.flush()
+    admin_emp = people["Priya Sharma"]
+    for emp in people.values():
+        for t in trainings:
+            db.add(TrainingAssignment(
+                training_id=t.id, employee_id=emp.id, assigned_by=admin_emp.id
+            ))
     for name, count in TRAINING_COMPLETIONS.items():
         for t in trainings[:count]:
             db.add(TrainingCompletion(
@@ -365,14 +376,14 @@ def seed() -> None:  # noqa: C901 - a linear seed reads clearer in one place
     db.add(ComplianceIssue(
         audit_id=audits["MFG"].id, severity=IssueSeverity.HIGH,
         description="Emergency exit partially obstructed on assembly line",
-        owner_id=people["Arjun Mehta"].id, due_date=date(2026, 6, 15),
-        status=IssueStatus.OPEN, is_overdue=True,
+        owner_id=people["Sara Khan"].id, created_by=people["Arjun Mehta"].id,
+        due_date=date(2026, 6, 15), status=IssueStatus.OPEN, is_overdue=True,
     ))
     db.add(ComplianceIssue(
         audit_id=audits["LOG_fail"].id, severity=IssueSeverity.MEDIUM,
         description="Incomplete cold-chain temperature logs",
-        owner_id=people["Neha Verma"].id, due_date=date(2026, 8, 1),
-        status=IssueStatus.IN_PROGRESS, is_overdue=False,
+        owner_id=people["Neha Verma"].id, created_by=people["Priya Sharma"].id,
+        due_date=date(2026, 8, 1), status=IssueStatus.IN_PROGRESS, is_overdue=False,
     ))
 
     for ntype in NotificationType:
