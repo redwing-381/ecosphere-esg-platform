@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { apiError } from "../lib/api";
 import { useDepartments, useEmployees } from "../lib/hooks";
@@ -32,6 +32,7 @@ const TABS = [
   "Organization",
   "Departments",
   "Employees",
+  "Courses",
   "Emission Factors",
   "Policies",
   "Rewards",
@@ -55,6 +56,7 @@ export default function Admin() {
       {tab === "Organization" && <OrganizationPanel />}
       {tab === "Departments" && <DepartmentsPanel />}
       {tab === "Employees" && <EmployeesPanel />}
+      {tab === "Courses" && <CoursesPanel />}
       {tab === "Emission Factors" && <FactorsPanel />}
       {tab === "Policies" && <PoliciesPanel />}
       {tab === "Rewards" && <RewardsPanel />}
@@ -68,6 +70,7 @@ function FormModal({
   open,
   title,
   fields,
+  initialValues,
   onClose,
   onSubmit,
   error,
@@ -76,14 +79,23 @@ function FormModal({
   open: boolean;
   title: string;
   fields: FieldSpec[];
+  initialValues?: Record<string, any>;
   onClose: () => void;
   onSubmit: (values: Record<string, any>) => void;
   error: string;
   pending: boolean;
 }) {
-  const initial = () =>
+  const defaults = () =>
     Object.fromEntries(fields.map((f) => [f.name, f.default ?? (f.type === "checkbox" ? false : "")]));
-  const [values, setValues] = useState<Record<string, any>>(initial);
+  const [values, setValues] = useState<Record<string, any>>(defaults);
+
+  useEffect(() => {
+    if (open) {
+      const base = defaults();
+      setValues(initialValues ? { ...base, ...initialValues } : base);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   function submit() {
     const coerced: Record<string, any> = {};
@@ -144,6 +156,8 @@ function CrudPanel({
   createUrl,
   columns,
   fields,
+  editable = false,
+  deletable = false,
 }: {
   title: string;
   queryKey: string;
@@ -151,24 +165,49 @@ function CrudPanel({
   createUrl: string;
   columns: Column[];
   fields: FieldSpec[];
+  editable?: boolean;
+  deletable?: boolean;
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
   const [error, setError] = useState("");
 
   const list = useQuery({
     queryKey: [queryKey],
     queryFn: async () => (await api.get<any[]>(listUrl)).data,
   });
+  const invalidate = () => qc.invalidateQueries({ queryKey: [queryKey] });
   const create = useMutation({
     mutationFn: async (values: Record<string, any>) => api.post(createUrl, values),
     onSuccess: () => {
       setOpen(false);
       setError("");
-      qc.invalidateQueries({ queryKey: [queryKey] });
+      invalidate();
     },
     onError: (e) => setError(apiError(e)),
   });
+  const update = useMutation({
+    mutationFn: async ({ id, values }: { id: number; values: Record<string, any> }) =>
+      api.patch(`${listUrl}/${id}`, values),
+    onSuccess: () => {
+      setEditing(null);
+      setError("");
+      invalidate();
+    },
+    onError: (e) => setError(apiError(e)),
+  });
+  const remove = useMutation({
+    mutationFn: async (id: number) => api.delete(`${listUrl}/${id}`),
+    onSuccess: invalidate,
+    onError: (e) => setError(apiError(e)),
+  });
+
+  const head = columns.map((c) => c.head);
+  if (editable || deletable) head.push("");
+
+  const initialFor = (row: any) =>
+    Object.fromEntries(fields.map((f) => [f.name, row[f.name] ?? (f.type === "checkbox" ? false : "")]));
 
   return (
     <Card>
@@ -176,12 +215,34 @@ function CrudPanel({
         <p className="text-sm font-medium text-slate-700">{title}</p>
         <Button onClick={() => setOpen(true)}>+ Add</Button>
       </div>
-      <Table head={columns.map((c) => c.head)}>
+      {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
+      <Table head={head} scroll>
         {(list.data ?? []).map((row) => (
           <tr key={row.id}>
             {columns.map((c, i) => (
               <Td key={i}>{c.render(row)}</Td>
             ))}
+            {(editable || deletable) && (
+              <Td>
+                <div className="flex gap-2">
+                  {editable && (
+                    <Button variant="ghost" onClick={() => setEditing(row)}>
+                      Edit
+                    </Button>
+                  )}
+                  {deletable && (
+                    <Button
+                      variant="danger"
+                      onClick={() => {
+                        if (confirm(`Delete this ${title.replace(/s$/, "").toLowerCase()}?`)) remove.mutate(row.id);
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </div>
+              </Td>
+            )}
           </tr>
         ))}
       </Table>
@@ -193,6 +254,16 @@ function CrudPanel({
         onSubmit={(v) => create.mutate(v)}
         error={error}
         pending={create.isPending}
+      />
+      <FormModal
+        open={!!editing}
+        title={`Edit ${title}`}
+        fields={fields}
+        initialValues={editing ? initialFor(editing) : undefined}
+        onClose={() => setEditing(null)}
+        onSubmit={(v) => update.mutate({ id: editing.id, values: v })}
+        error={error}
+        pending={update.isPending}
       />
     </Card>
   );
@@ -275,6 +346,29 @@ function OrganizationPanel() {
   );
 }
 
+function CoursesPanel() {
+  return (
+    <CrudPanel
+      title="Courses"
+      queryKey="all-trainings"
+      listUrl="/social/trainings"
+      createUrl="/social/trainings"
+      editable
+      deletable
+      columns={[
+        { head: "Course", render: (r) => r.name },
+        { head: "Type", render: (r) => (r.mandatory ? "Mandatory" : "Optional") },
+        { head: "Description", render: (r) => r.description ?? "—" },
+      ]}
+      fields={[
+        { name: "name", label: "Name", type: "text" },
+        { name: "description", label: "Description", type: "textarea" },
+        { name: "mandatory", label: "Mandatory", type: "checkbox" },
+      ]}
+    />
+  );
+}
+
 function DepartmentsPanel() {
   const employees = useEmployees();
   return (
@@ -283,6 +377,8 @@ function DepartmentsPanel() {
       queryKey="departments"
       listUrl="/departments"
       createUrl="/departments"
+      editable
+      deletable
       columns={[
         { head: "Name", render: (r) => r.name },
         { head: "Code", render: (r) => r.code },
@@ -312,6 +408,7 @@ function EmployeesPanel() {
       queryKey="employees"
       listUrl="/employees"
       createUrl="/employees"
+      editable
       columns={[
         { head: "Name", render: (r) => r.name },
         { head: "Email", render: (r) => r.email },

@@ -2,22 +2,24 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { apiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useEmployees, useProfile } from "../lib/hooks";
 import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Table, Td } from "../components/ui";
 
 type CSR = { id: number; name: string; activity_date: string; xp_reward: number; points_reward: number; capacity: number | null };
-type Training = { id: number; name: string; mandatory: boolean };
+type Training = { id: number; name: string; description: string | null; mandatory: boolean };
+type MyTraining = { id: number; name: string; description: string | null; mandatory: boolean; completed: boolean };
 type Category = { id: number; name: string };
 
 const isManagerRole = (r?: string) => r === "admin" || r === "dept_head";
 
-/** Social module: CSR activities to join and trainings to complete. */
+/** Social module: CSR activities, and course assignment (managers) or completion (employees). */
 export default function Social() {
   const { user } = useAuth();
   const isManager = isManagerRole(user?.role);
   const qc = useQueryClient();
   const [note, setNote] = useState("");
   const [csrOpen, setCsrOpen] = useState(false);
-  const [trainingOpen, setTrainingOpen] = useState(false);
+  const [assignFor, setAssignFor] = useState<Training | null>(null);
   const [csrForm, setCsrForm] = useState({
     name: "",
     category_id: "",
@@ -26,13 +28,21 @@ export default function Social() {
     points_reward: 20,
     capacity: 25,
   });
-  const [trainingForm, setTrainingForm] = useState({ name: "", mandatory: false });
 
   const csr = useQuery({ queryKey: ["csr"], queryFn: async () => (await api.get<CSR[]>("/social/csr-activities")).data });
-  const trainings = useQuery({ queryKey: ["trainings"], queryFn: async () => (await api.get<Training[]>("/social/trainings")).data });
   const categories = useQuery({
     queryKey: ["categories", "csr"],
     queryFn: async () => (await api.get<Category[]>("/social/categories?type=csr")).data,
+  });
+  const allTrainings = useQuery({
+    queryKey: ["all-trainings"],
+    enabled: isManager,
+    queryFn: async () => (await api.get<Training[]>("/social/trainings")).data,
+  });
+  const myTrainings = useQuery({
+    queryKey: ["my-trainings"],
+    enabled: !isManager,
+    queryFn: async () => (await api.get<MyTraining[]>("/social/my-trainings")).data,
   });
 
   const join = useMutation({
@@ -42,7 +52,10 @@ export default function Social() {
   });
   const complete = useMutation({
     mutationFn: async (id: number) => api.post(`/social/trainings/${id}/complete`),
-    onSuccess: () => setNote("Training marked complete."),
+    onSuccess: () => {
+      setNote("Course marked complete.");
+      qc.invalidateQueries({ queryKey: ["my-trainings"] });
+    },
     onError: (e) => setNote(apiError(e)),
   });
   const createCsr = useMutation({
@@ -61,18 +74,10 @@ export default function Social() {
     },
     onError: (e) => setNote(apiError(e)),
   });
-  const createTraining = useMutation({
-    mutationFn: async () => api.post("/social/trainings", trainingForm),
-    onSuccess: () => {
-      setTrainingOpen(false);
-      qc.invalidateQueries({ queryKey: ["trainings"] });
-    },
-    onError: (e) => setNote(apiError(e)),
-  });
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Social" subtitle="Join CSR activities and complete trainings to earn XP and points." />
+      <PageHeader title="Social" subtitle="Join CSR activities and complete assigned courses to earn XP and points." />
       {note && <p className="text-sm text-brand-700">{note}</p>}
 
       <div>
@@ -80,7 +85,7 @@ export default function Social() {
           <p className="text-sm font-medium text-slate-700">CSR activities</p>
           {isManager && <Button onClick={() => setCsrOpen(true)}>+ Add CSR activity</Button>}
         </div>
-        <Table head={["Activity", "Date", "XP", "Points", "Capacity", ""]}>
+        <Table head={["Activity", "Date", "XP", "Points", "Capacity", ""]} scroll>
           {csr.data?.map((a) => (
             <tr key={a.id}>
               <Td className="font-medium">{a.name}</Td>
@@ -99,23 +104,48 @@ export default function Social() {
       </div>
 
       <Card>
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-slate-700">Trainings</p>
-          {isManager && <Button onClick={() => setTrainingOpen(true)}>+ Add training</Button>}
-        </div>
-        <Table head={["Training", "Type", ""]}>
-          {trainings.data?.map((t) => (
-            <tr key={t.id}>
-              <Td className="font-medium">{t.name}</Td>
-              <Td>{t.mandatory ? <Badge tone="amber">Mandatory</Badge> : <Badge>Optional</Badge>}</Td>
-              <Td>
-                <Button variant="ghost" onClick={() => complete.mutate(t.id)}>
-                  Mark complete
-                </Button>
-              </Td>
-            </tr>
-          ))}
-        </Table>
+        <p className="mb-3 text-sm font-medium text-slate-700">
+          {isManager ? "Courses — enable for your team" : "My courses"}
+        </p>
+        {isManager ? (
+          <Table head={["Course", "Type", ""]} scroll>
+            {allTrainings.data?.map((t) => (
+              <tr key={t.id}>
+                <Td className="font-medium">{t.name}</Td>
+                <Td>{t.mandatory ? <Badge tone="amber">Mandatory</Badge> : <Badge>Optional</Badge>}</Td>
+                <Td>
+                  <Button variant="ghost" onClick={() => setAssignFor(t)}>
+                    Assign
+                  </Button>
+                </Td>
+              </tr>
+            ))}
+          </Table>
+        ) : (
+          <Table head={["Course", "Type", "Status", ""]} scroll>
+            {myTrainings.data?.length === 0 ? (
+              <tr>
+                <Td className="text-slate-400">No courses enabled for you yet.</Td>
+                <Td /> <Td /> <Td />
+              </tr>
+            ) : (
+              myTrainings.data?.map((t) => (
+                <tr key={t.id}>
+                  <Td className="font-medium">{t.name}</Td>
+                  <Td>{t.mandatory ? <Badge tone="amber">Mandatory</Badge> : <Badge>Optional</Badge>}</Td>
+                  <Td>{t.completed ? <Badge tone="green">Completed</Badge> : <Badge>Pending</Badge>}</Td>
+                  <Td>
+                    {!t.completed && (
+                      <Button variant="ghost" onClick={() => complete.mutate(t.id)}>
+                        Mark complete
+                      </Button>
+                    )}
+                  </Td>
+                </tr>
+              ))
+            )}
+          </Table>
+        )}
       </Card>
 
       <Modal open={csrOpen} title="Add CSR activity" onClose={() => setCsrOpen(false)}>
@@ -153,20 +183,76 @@ export default function Social() {
         </div>
       </Modal>
 
-      <Modal open={trainingOpen} title="Add training" onClose={() => setTrainingOpen(false)}>
-        <div className="space-y-3">
-          <Field label="Name">
-            <Input value={trainingForm.name} onChange={(e) => setTrainingForm({ ...trainingForm, name: e.target.value })} />
-          </Field>
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={trainingForm.mandatory} onChange={(e) => setTrainingForm({ ...trainingForm, mandatory: e.target.checked })} />
-            Mandatory
-          </label>
-          <Button className="w-full" onClick={() => createTraining.mutate()} disabled={createTraining.isPending}>
-            Save training
-          </Button>
-        </div>
-      </Modal>
+      {assignFor && (
+        <AssignCourseModal
+          training={assignFor}
+          onClose={() => setAssignFor(null)}
+          onDone={() => {
+            setAssignFor(null);
+            setNote("Course enabled for the selected employees.");
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function AssignCourseModal({
+  training,
+  onClose,
+  onDone,
+}: {
+  training: { id: number; name: string };
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { data: profile } = useProfile();
+  const employees = useEmployees();
+  const [selected, setSelected] = useState<number[]>([]);
+  const [error, setError] = useState("");
+
+  const scoped = (employees.data ?? []).filter(
+    (e) => profile?.role === "admin" || e.department_id === profile?.department_id
+  );
+
+  const already = useQuery({
+    queryKey: ["assignments", training.id],
+    queryFn: async () => (await api.get<number[]>(`/social/trainings/${training.id}/assignments`)).data,
+  });
+
+  const assign = useMutation({
+    mutationFn: async () => api.post(`/social/trainings/${training.id}/assign`, { employee_ids: selected }),
+    onSuccess: onDone,
+    onError: (e) => setError(apiError(e)),
+  });
+
+  const enabled = new Set(already.data ?? []);
+
+  return (
+    <Modal open title={`Assign: ${training.name}`} onClose={onClose}>
+      {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
+      <p className="mb-2 text-xs text-slate-500">Select employees to enable this course for.</p>
+      <div className="max-h-72 space-y-1 overflow-y-auto">
+        {scoped.map((e) => {
+          const isEnabled = enabled.has(e.id);
+          return (
+            <label key={e.id} className={`flex items-center gap-2 rounded px-2 py-1 text-sm ${isEnabled ? "text-slate-400" : "text-slate-700"}`}>
+              <input
+                type="checkbox"
+                disabled={isEnabled}
+                checked={isEnabled || selected.includes(e.id)}
+                onChange={(ev) =>
+                  setSelected((s) => (ev.target.checked ? [...s, e.id] : s.filter((x) => x !== e.id)))
+                }
+              />
+              {e.name} {isEnabled && <span className="text-xs">(already enabled)</span>}
+            </label>
+          );
+        })}
+      </div>
+      <Button className="mt-4 w-full" onClick={() => assign.mutate()} disabled={assign.isPending || selected.length === 0}>
+        Enable for {selected.length} employee{selected.length === 1 ? "" : "s"}
+      </Button>
+    </Modal>
   );
 }

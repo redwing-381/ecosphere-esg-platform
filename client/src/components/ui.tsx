@@ -102,14 +102,26 @@ export function Stat({ label, value, tone = "slate" }: { label: string; value: R
 }
 
 /** Simple table wrapper that renders a header row and body rows. */
-export function Table({ head, children }: { head: string[]; children: React.ReactNode }) {
+export function Table({
+  head,
+  children,
+  scroll = false,
+}: {
+  head: string[];
+  children: React.ReactNode;
+  scroll?: boolean;
+}) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    <div
+      className={`overflow-x-auto rounded-xl border border-slate-200 bg-white ${
+        scroll ? "max-h-[28rem] overflow-y-auto" : ""
+      }`}
+    >
       <table className="w-full text-left text-sm">
         <thead className="bg-slate-50 text-slate-500">
           <tr>
             {head.map((h) => (
-              <th key={h} className="px-4 py-2.5 font-medium">
+              <th key={h} className={`px-4 py-2.5 font-medium ${scroll ? "sticky top-0 bg-slate-50" : ""}`}>
                 {h}
               </th>
             ))}
