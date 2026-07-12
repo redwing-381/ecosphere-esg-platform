@@ -3,7 +3,13 @@ import { useAuth } from "./lib/auth";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Placeholder from "./pages/Placeholder";
+import Environmental from "./pages/Environmental";
+import Social from "./pages/Social";
+import Governance from "./pages/Governance";
+import Gamification from "./pages/Gamification";
+import Rewards from "./pages/Rewards";
+import Simulator from "./pages/Simulator";
+import Reports from "./pages/Reports";
 
 /** Guard that redirects unauthenticated users to the login screen. */
 function Protected({ children }: { children: React.ReactNode }) {
@@ -18,11 +24,13 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<Protected><Dashboard /></Protected>} />
-      <Route path="/environmental" element={<Protected><Placeholder title="Environmental" /></Protected>} />
-      <Route path="/social" element={<Protected><Placeholder title="Social" /></Protected>} />
-      <Route path="/governance" element={<Protected><Placeholder title="Governance" /></Protected>} />
-      <Route path="/gamification" element={<Protected><Placeholder title="Gamification" /></Protected>} />
-      <Route path="/reports" element={<Protected><Placeholder title="Reports" /></Protected>} />
+      <Route path="/environmental" element={<Protected><Environmental /></Protected>} />
+      <Route path="/social" element={<Protected><Social /></Protected>} />
+      <Route path="/governance" element={<Protected><Governance /></Protected>} />
+      <Route path="/gamification" element={<Protected><Gamification /></Protected>} />
+      <Route path="/rewards" element={<Protected><Rewards /></Protected>} />
+      <Route path="/simulator" element={<Protected><Simulator /></Protected>} />
+      <Route path="/reports" element={<Protected><Reports /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
