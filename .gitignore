@@ -30,3 +30,6 @@ client/dist/
 
 # Problem statement (kept locally, not versioned)
 *.pdf
+
+# Judge access guide with credentials (kept local, shared privately)
+docs/judges-access.md
