@@ -1,4 +1,5 @@
 """FastAPI application entry point with error handling and CORS."""
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -20,9 +21,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve uploads from local disk only in the disk-backed (dev) mode. When Vercel
-# Blob is configured, proof files live in Blob and are served from its own URL.
-if not settings.blob_read_write_token:
+# Serve uploads from local disk only outside serverless. On Vercel the
+# deployment filesystem is read-only, so we must not try to mkdir there —
+# proof files live in Vercel Blob when the token is set, and are unavailable
+# otherwise.
+if not settings.blob_read_write_token and not os.getenv("VERCEL"):
     Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
